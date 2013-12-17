@@ -21,9 +21,10 @@ pub enum Greedy {
 
 
 /// Parse a regular expression into an AST.
-pub fn parse(s: &str) -> Expr {
-    let (e, s_) = p_alternate(s);
-    if s_.len() > 0 {
+pub fn parse(input: &str) -> Expr {
+    let mut s = State::new(input);
+    let e = p_alternate(&mut s);
+    if s.has_input() {
         // p_alternate() only terminates on an empty string or an extra
         // paren.  Since the string isn't empty, we infer the latter.
         fail!("unbalanced parenthesis")
@@ -33,19 +34,61 @@ pub fn parse(s: &str) -> Expr {
 }
 
 
-fn p_alternate<'a>(s_init: &'a str) -> (Expr, &'a str) {
+/// The parser state.
+struct State<'a> {
+    input: &'a str,
+    prev: Option<&'a str>,
+}
+
+
+impl<'a> State<'a> {
+    fn new<'a>(input: &'a str) -> State<'a> {
+        State {
+            input: input,
+            prev: None,
+        }
+    }
+
+    /// Consume and return the next character in the input, returning
+    /// `None` if empty.
+    #[inline]
+    fn advance(&mut self) -> Option<char> {
+        self.prev = Some(self.input);
+        if self.has_input() {
+            let (c, input_) = self.input.slice_shift_char();
+            self.input = input_;
+            Some(c)
+        } else {
+            None
+        }
+    }
+
+    /// Push the previously read character back onto the input.  This
+    /// can only be called immediately after `shift`.
+    #[inline]
+    fn retreat(&mut self) {
+        self.input = self.prev.expect("nowhere to retreat");
+        self.prev = None;
+    }
+
+    /// Return `true` if there is input remaining.
+    #[inline]
+    fn has_input(&self) -> bool {
+        self.input.len() > 0
+    }
+}
+
+
+fn p_alternate(s: &mut State) -> Expr {
     let mut items: ~[Expr] = ~[];
-    let mut s: &'a str = s_init;
 
     loop {
-        let (e, s_) = p_concatenate(s);
-        items.push(e);
-        s = s_;
-        match uncons(s_) {
-            Some((c, s_1)) => {
+        items.push(p_concatenate(s));
+        match s.advance() {
+            Some(c) => {
                 match c {
-                    '|' => { s = s_1; },
-                    ')' => break,
+                    ')' => { s.retreat(); break },
+                    '|' => continue,
                     _ => fail!("something bad happened; it's really bad")
                 }
             },
@@ -53,50 +96,40 @@ fn p_alternate<'a>(s_init: &'a str) -> (Expr, &'a str) {
         }
     }
 
-    (match items {
+    match items {
         [] => Empty,
         [e] => e,
         _ => Alternate(items)
-    }, s)
+    }
 }
 
 
-fn p_concatenate<'a>(s_init: &'a str) -> (Expr, &'a str) {
+fn p_concatenate(s: &mut State) -> Expr {
     let mut items: ~[Expr] = ~[];
-    let mut s: &'a str = s_init;
 
-    loop { match uncons(s) {
-        Some((c, s1)) => match c {
-            '|' | ')' => break,
+    loop { match s.advance() {
+        Some(c) => match c {
+            '|' | ')' => { s.retreat(); break },
             '(' => {
                 // Parse inside the parens
-                let (e, s_) = p_alternate(s1);
+                let e = p_alternate(s);
                 // Match the closing paren
-                match uncons(s_) {
-                    Some((')', s_1)) => {
-                        push_ignore_empty(&mut items, e);
-                        s = s_1;
-                    },
+                match s.advance() {
+                    Some(')') => push_ignore_empty(&mut items, e),
                     _ => fail!("mismatched parenthesis")
                 }
             },
-            '.' => {
-                items.push(Range('\0', char::MAX));
-                s = s1;
-            },
-            _ => {
-                items.push(Range(c, c));
-                s = s1;
-            }
+            '.' => items.push(Range('\0', char::MAX)),
+            _ => items.push(Range(c, c))
         },
         None => break
     }}
 
-    (match items {
+    match items {
         [] => Empty,
         [e] => e,
         _ => Concatenate(items)
-    }, s)
+    }
 }
 
 
@@ -105,16 +138,5 @@ fn push_ignore_empty(items: &mut ~[Expr], e: Expr) {
     match e {
         Empty => {},
         _ => items.push(e)
-    }
-}
-
-
-/// Return the first element and the rest of a `str`, or `None` if
-/// empty.
-fn uncons<'a>(s: &'a str) -> Option<(char, &'a str)> {
-    if s.len() > 0 {
-        Some(s.slice_shift_char())
-    } else {
-        None
     }
 }
