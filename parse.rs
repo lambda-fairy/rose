@@ -31,45 +31,49 @@ pub fn parse(s: &str) -> Expr {
 }
 
 
-fn parse_main<'a>(s: &'a str) -> (Expr, &'a str) {
+fn parse_main<'a>(s_init: &'a str) -> (Expr, &'a str) {
     let mut stack: ~[Expr] = ~[];
-    parse_loop(s, &mut stack)
-}
-
-
-fn parse_loop<'a>(s: &'a str, stack: &mut ~[Expr]) -> (Expr, &'a str) {
-    match uncons(s) {
-        Some((c, s1)) => {
-            match c {
-                '.' => {
-                    stack.push(Range('\0', char::MAX));
-                    parse_loop(s1, stack)
-                },
-                '|' => {
-                    let left = coalesce(stack);
-                    let (right, s_) = parse_loop(s1, stack);
-                    (Alternate(~left, ~right), s_)
-                },
-                '(' => {
-                    // Collect everything before the parens
-                    let before = coalesce(stack);
-                    // Parse inside the parens
-                    let (inner, s_) = parse_loop(s1, stack);
-                    // Match the closing paren
-                    match uncons(s_) {
-                        Some((')', s_1)) => (concatenate(before, inner), s_1),
-                        _ => fail!("unbalanced parenthesis")
+    let mut s: &'a str = s_init;
+    loop {
+        match uncons(s) {
+            Some((c, s1)) => {
+                match c {
+                    '.' => {
+                        stack.push(Range('\0', char::MAX));
+                        s = s1;
+                    },
+                    '|' => {
+                        let left = coalesce(&mut stack);
+                        let (right, s_) = parse_main(s1);
+                        stack.push(Alternate(~left, ~right));
+                        s = s_;
+                    },
+                    '(' => {
+                        // Collect everything before the parens
+                        let before = coalesce(&mut stack);
+                        // Parse inside the parens
+                        let (inner, s_) = parse_main(s1);
+                        // Match the closing paren
+                        match uncons(s_) {
+                            Some((')', s_1)) => {
+                                stack.push(concatenate(before, inner));
+                                s = s_1;
+                            },
+                            _ => fail!("unbalanced parenthesis")
+                        }
+                    },
+                    ')' => break,
+                    _ => {
+                        stack.push(Range(c, c));
+                        s = s1;
                     }
-                },
-                ')' => (coalesce(stack), s),
-                _ => {
-                    stack.push(Range(c, c));
-                    parse_loop(s1, stack)
                 }
-            }
-        },
-        None => (coalesce(stack), s)
+            },
+            None => break
+        }
     }
+
+    (coalesce(&mut stack), s)
 }
 
 
