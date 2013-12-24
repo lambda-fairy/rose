@@ -186,8 +186,9 @@ fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
 ///
 /// * `{N}` – match exactly N repetitions;
 /// * `{M,}` – at least M;
+/// * `{,N}` – at most N;
 /// * `{M,N}` – from M to N inclusive;
-/// * `{,N}` – at most N.
+/// * `{,}` – zero or more (synonymous with `*`).
 ///
 /// If parsing fails, return `None` without consuming input.  This
 /// matches Python behavior, where invalid repetitions are ignored.
