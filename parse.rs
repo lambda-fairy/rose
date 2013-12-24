@@ -9,14 +9,14 @@ pub enum Expr {
     Range(char, char),
     Concatenate(~[Expr]),
     Alternate(~[Expr]),
-    Repeat(~Expr, uint, Option<uint>, Greedy),
+    Repeat(~Expr, uint, Option<uint>, Greedy)
 }
 
 
 #[deriving(ToStr)]
 pub enum Greedy {
     NonGreedy,
-    Greedy,
+    Greedy
 }
 
 
@@ -37,7 +37,7 @@ pub fn parse(input: &str) -> Expr {
 /// The parser state.
 struct State<'a> {
     input: &'a str,
-    prev: Option<&'a str>,
+    prev: Option<&'a str>
 }
 
 
@@ -45,13 +45,12 @@ impl<'a> State<'a> {
     fn new<'a>(input: &'a str) -> State<'a> {
         State {
             input: input,
-            prev: None,
+            prev: None
         }
     }
 
     /// Consume and return the next character in the input, returning
     /// `None` if empty.
-    #[inline]
     fn advance(&mut self) -> Option<char> {
         self.prev = Some(self.input);
         if self.has_input() {
@@ -65,14 +64,12 @@ impl<'a> State<'a> {
 
     /// Push the previously read character back onto the input.  This
     /// can only be called immediately after `shift`.
-    #[inline]
     fn retreat(&mut self) {
         self.input = self.prev.expect("nowhere to retreat");
         self.prev = None;
     }
 
     /// Return `true` if there is input remaining.
-    #[inline]
     fn has_input(&self) -> bool {
         self.input.len() > 0
     }
@@ -107,23 +104,25 @@ fn p_alternate(s: &mut State) -> Expr {
 fn p_concatenate(s: &mut State) -> Expr {
     let mut items: ~[Expr] = ~[];
 
-    loop { match s.advance() {
-        Some(c) => match c {
-            '|' | ')' => { s.retreat(); break },
-            '(' => {
-                // Parse inside the parens
-                let e = p_alternate(s);
-                // Match the closing paren
-                match s.advance() {
-                    Some(')') => push_ignore_empty(&mut items, e),
-                    _ => fail!("mismatched parenthesis")
-                }
+    loop {
+        match s.advance() {
+            Some(c) => match c {
+                '|' | ')' => { s.retreat(); break },
+                '(' => {
+                    // Parse inside the parens
+                    let e = p_alternate(s);
+                    // Match the closing paren
+                    match s.advance() {
+                        Some(')') => push_ignore_empty(&mut items, e),
+                        _ => fail!("mismatched parenthesis")
+                    }
+                },
+                '.' => items.push(Range('\0', char::MAX)),
+                _ => items.push(Range(c, c))
             },
-            '.' => items.push(Range('\0', char::MAX)),
-            _ => items.push(Range(c, c))
-        },
-        None => break
-    }}
+            None => break
+        }
+    }
 
     match items {
         [] => Empty,
