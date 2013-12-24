@@ -3,6 +3,7 @@
 use std::char;
 
 
+/// A regular expression AST.
 #[deriving(ToStr)]
 pub enum Expr {
     Empty,
@@ -20,7 +21,7 @@ pub enum Greedy {
 }
 
 
-/// Parse a regular expression into an AST.
+/// Parse a regular expression into an AST.  Fails on invalid syntax.
 pub fn parse(input: &str) -> Expr {
     let mut s = State::new(input);
     let e = p_alternate(&mut s);
@@ -34,11 +35,11 @@ pub fn parse(input: &str) -> Expr {
 }
 
 
-/// The parser state.
+/// The parser state.  This tracks the position in the input string.
 #[deriving(Clone)]
 struct State<'a> {
     input: &'a str,
-    prev: Option<&'a str>
+    prev: Option<&'a str>  // See `State::retreat`
 }
 
 
@@ -64,7 +65,7 @@ impl<'a> State<'a> {
     }
 
     /// Push the previously read character back onto the input.  This
-    /// can only be called immediately after `shift`.
+    /// can only be called immediately after `advance`.
     fn retreat(&mut self) {
         self.input = self.prev.expect("nowhere to retreat");
         self.prev = None;
@@ -77,6 +78,11 @@ impl<'a> State<'a> {
 }
 
 
+/// Parse alternation, e.g. `ducks|geese|swans`.
+///
+/// An alternation consists of zero or more concatenations, separated by
+/// vertical bars `|`.
+///
 fn p_alternate(s: &mut State) -> Expr {
     let mut items: ~[Expr] = ~[];
 
@@ -102,6 +108,7 @@ fn p_alternate(s: &mut State) -> Expr {
 }
 
 
+/// Parse concatenation, e.g. `abc`.
 fn p_concatenate(s: &mut State) -> Expr {
     let mut items: ~[Expr] = ~[];
 
@@ -173,6 +180,18 @@ fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
 }
 
 
+/// Parse a counted repetition (e.g. `a{2,3}`), sans the opening brace.
+///
+/// The following syntaxes are accepted:
+///
+/// * `{N}` – match exactly N repetitions;
+/// * `{M,}` – at least M;
+/// * `{M,N}` – from M to N inclusive;
+/// * `{,N}` – at most N.
+///
+/// If parsing fails, return `None` without consuming input.  This
+/// matches Python behavior, where invalid repetitions are ignored.
+///
 fn p_repetition(s_outer: &mut State) -> Option<(uint, Option<uint>)> {
     // Clone the parser state, so we can backtrack on failure
     let mut s = s_outer.clone();
@@ -206,6 +225,7 @@ fn p_repetition(s_outer: &mut State) -> Option<(uint, Option<uint>)> {
 }
 
 
+/// Parse a non-negative integer, returning `None` on failure.
 fn p_number(s: &mut State) -> Option<uint> {
     let mut acc = None;
     loop {
