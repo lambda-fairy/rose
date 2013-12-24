@@ -35,6 +35,7 @@ pub fn parse(input: &str) -> Expr {
 
 
 /// The parser state.
+#[deriving(Clone)]
 struct State<'a> {
     input: &'a str,
     prev: Option<&'a str>
@@ -129,6 +130,10 @@ fn p_concatenate(s: &mut State) -> Expr {
                 },
                 '+' => add_repeat(&mut items, 1, None),
                 '*' => add_repeat(&mut items, 0, None),
+                '{' => match p_repetition(s) {
+                    Some((min, max)) => add_repeat(&mut items, min, max),
+                    None => items.push(Range(c, c))
+                },
                 _ => items.push(Range(c, c))
             },
             None => break
@@ -165,4 +170,55 @@ fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
         Repeat(..) => fail!("multiple repeat"),
         _ => Repeat(~e, min, max, Greedy)
     })
+}
+
+
+fn p_repetition(s_outer: &mut State) -> Option<(uint, Option<uint>)> {
+    // Clone the parser state, so we can backtrack on failure
+    let mut s = s_outer.clone();
+
+    let result = {
+        let min = p_number(&mut s);
+        match s.advance() {
+            Some(',') => {
+                let max = p_number(&mut s);
+                match s.advance() {
+                    // {} or {N,} or {,M} or {N,M}
+                    Some('}') => Some((min.unwrap_or(0), max)),
+                    _ => None
+                }
+            },
+            Some('}') => match min {
+                // {N}
+                Some(n) => Some((n, Some(n))),
+                _ => None
+            },
+            _ => None
+        }
+    };
+
+    if result.is_some() {
+        // Only consume input if parsing was successful
+        s_outer.clone_from(&s);
+    }
+
+    result
+}
+
+
+fn p_number(s: &mut State) -> Option<uint> {
+    let mut acc = None;
+    loop {
+        match s.advance() {
+            Some(c) if '0' <= c && c <= '9' => {
+                let digit = c as uint - '0' as uint;
+                acc = Some(match acc {
+                    Some(n) => 10 * n + digit,
+                    None => digit
+                });
+            },
+            _ => { s.retreat(); break }
+        }
+    }
+    acc
 }
