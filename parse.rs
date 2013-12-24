@@ -118,6 +118,29 @@ fn p_concatenate(s: &mut State) -> Expr {
                     }
                 },
                 '.' => items.push(Range('\0', char::MAX)),
+                '?' => {
+                    let e = items.pop_opt().expect("nothing to repeat");
+                    items.push(match e {
+                        Repeat(_, _, _, NonGreedy) => fail!("multiple repeat"),
+                        Repeat(inner, min, max, Greedy) =>
+                            Repeat(inner, min, max, NonGreedy),
+                        _ => Repeat(~e, 0, Some(1), Greedy)
+                    })
+                },
+                '+' => {
+                    let e = items.pop_opt().expect("nothing to repeat");
+                    items.push(match e {
+                        Repeat(..) => fail!("multiple repeat"),
+                        _ => Repeat(~e, 1, None, Greedy)
+                    })
+                },
+                '*' => {
+                    let e = items.pop_opt().expect("nothing to repeat");
+                    items.push(match e {
+                        Repeat(..) => fail!("multiple repeat"),
+                        _ => Repeat(~e, 0, None, Greedy)
+                    })
+                }
                 _ => items.push(Range(c, c))
             },
             None => break
