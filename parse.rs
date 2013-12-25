@@ -10,7 +10,9 @@ pub enum Expr {
     Range(char, char),
     Concatenate(~[Expr]),
     Alternate(~[Expr]),
-    Repeat(~Expr, uint, Option<uint>, Greedy)
+    Repeat(~Expr, uint, Option<uint>, Greedy),
+    Capture(~Expr),
+    Assertion(AssertType, ~Expr)
 }
 
 
@@ -18,6 +20,13 @@ pub enum Expr {
 pub enum Greedy {
     NonGreedy,
     Greedy
+}
+
+
+#[deriving(ToStr)]
+pub enum AssertType {
+    Positive,
+    Negative
 }
 
 
@@ -116,15 +125,7 @@ fn p_concatenate(s: &mut State) -> Expr {
         match s.advance() {
             Some(c) => match c {
                 '|' | ')' => { s.retreat(); break },
-                '(' => {
-                    // Parse inside the parens
-                    let e = p_alternate(s);
-                    // Match the closing paren
-                    match s.advance() {
-                        Some(')') => push_ignore_empty(&mut items, e),
-                        _ => fail!("mismatched parenthesis")
-                    }
-                },
+                '(' => push_ignore_empty(&mut items, p_group(s)),
                 '.' => items.push(Range('\0', char::MAX)),
                 '?' => {
                     let e = pop_expr(&mut items);
@@ -242,4 +243,41 @@ fn p_number(s: &mut State) -> Option<uint> {
         }
     }
     acc
+}
+
+
+/// Parse a group (e.g. `(hello)`), sans the opening parenthesis.
+fn p_group(s: &mut State) -> Expr {
+    let result = match s.advance() {
+        Some('?') => match s.advance() {
+            Some(c) => match c {
+                ':' => p_alternate(s),
+                '#' => p_comment(s),
+                '=' => Assertion(Positive, ~p_alternate(s)),
+                '!' => Assertion(Negative, ~p_alternate(s)),
+                _ => fail!(format!("unknown extension: ?{}", c))
+            },
+            None => fail!("unexpected end of pattern")
+        },
+        _ => { s.retreat(); Capture(~p_alternate(s)) }
+    };
+
+    // Match the closing paren
+    match s.advance() {
+        Some(')') => result,
+        _ => fail!("mismatched parenthesis")
+    }
+}
+
+
+/// Consume all input up to the first closing parenthesis, and return
+/// `Empty`.
+fn p_comment(s: &mut State) -> Expr {
+    loop {
+        match s.advance() {
+            Some(c) if c != ')' => continue,
+            _ => { s.retreat(); break }
+        }
+    }
+    Empty
 }
