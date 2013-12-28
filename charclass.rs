@@ -5,37 +5,26 @@ use std::cmp::{min, max};
 
 
 /// A range of codepoints.
-#[deriving(Eq)]  // Used in tests
-pub struct Range {
-    priv lo: char,
-    priv hi: char
-}
-
-impl Range {
-    fn new(lo: char, hi: char) -> Range {
-        if lo <= hi {
-            Range {
-                lo: lo,
-                hi: hi
-            }
-        } else {
-            fail!("invalid range")
-        }
-    }
-}
+type Range = (char, char);
 
 
-/// A character class is a non-empty collection of `Range`s.
-pub struct CharClass {
-    priv ranges: ~[Range]
+/// A character class is a non-empty collection of ranges.
+pub enum CharClass {
+    priv CCOwned(~[Range]),
+    priv CCStatic(&'static [Range])
 }
 
 impl CharClass {
-    fn new(mut r: ~[Range]) -> CharClass {
+    /// Create a class from a vector of ranges.
+    pub fn new(mut r: ~[Range]) -> CharClass {
+        if r.iter().any(|&(lo, hi)| lo > hi) {
+            fail!("invalid range");
+        }
+
         r.sort_by(|a, b| {
             // Sort by start value ascending, end value descending
-            match a.lo.cmp(&b.lo) {
-                Equal => b.hi.cmp(&a.hi),
+            match a.lo().cmp(&b.lo()) {
+                Equal => b.hi().cmp(&a.hi()),
                 o => o
             }
         });
@@ -44,25 +33,95 @@ impl CharClass {
             // Coalesce overlapping ranges in place
             let mut cursor = 0;
             for i in range(1, r.len()) {
-                if r[cursor].hi == char::MAX {
+                if r[cursor].hi() == char::MAX {
                     break
-                } else if r[i].lo <= next_char(r[cursor].hi) {
+                } else if r[i].lo() <= next_char(r[cursor].hi()) {
                     // Merge the two ranges
-                    r[cursor] = Range::new(
-                        min(r[cursor].lo, r[i].lo),
-                        max(r[cursor].hi, r[i].hi));
+                    r[cursor] = (
+                        min(r[cursor].lo(), r[i].lo()),
+                        max(r[cursor].hi(), r[i].hi()));
                 } else {
                     cursor = i;
                 }
             }
             r.truncate(cursor + 1); r.shrink_to_fit();
-            CharClass { ranges: r }
+            CCOwned(r)
         } else {
             fail!("char class cannot be empty")
         }
     }
+
+    /// Create a class matching a single code point.
+    pub fn from_char(c: char) -> CharClass {
+        CharClass::new(~[(c, c)])
+    }
+
+    /// Get the list of ranges contained in the character class.
+    ///
+    /// The returned vector is always sorted, with no overlapping
+    /// ranges.
+    pub fn ranges<'a>(&'a self) -> &'a [Range] {
+        match *self {
+            CCOwned(ref r) => {
+                let r_borrow: &'a [Range] = *r;
+                r_borrow
+            },
+            CCStatic(r) => {
+                let r_borrow: &'a [Range] = r;
+                r_borrow
+            }
+        }
+    }
+
+    /// Return the negation of the character class.
+    pub fn negate(&self) -> CharClass {
+        let ranges = self.ranges();
+        let mut result: ~[Range] = ~[];
+
+        let first_lo = ranges[0].lo();
+        if first_lo != '\0' {
+            result.push(('\0', prev_char(first_lo)));
+        }
+
+        let mut last_hi = ranges[0].hi();
+        for &(lo, hi) in ranges.slice_from(1).iter() {
+            result.push((next_char(last_hi), prev_char(lo)));
+            last_hi = hi;
+        }
+
+        if last_hi != char::MAX {
+            result.push((next_char(last_hi), char::MAX));
+        }
+
+        CCOwned(result)
+    }
 }
 
+
+trait RangeUtils {
+    fn lo(&self) -> char;
+    fn hi(&self) -> char;
+}
+
+impl RangeUtils for (char, char) {
+    #[inline]
+    fn lo(&self) -> char {
+        let &(lo, _) = self;
+        lo
+    }
+
+    #[inline]
+    fn hi(&self) -> char {
+        let &(_, hi) = self;
+        hi
+    }
+}
+
+
+#[inline]
+fn prev_char(c: char) -> char {
+    char::from_u32(c as u32 - 1).unwrap()
+}
 
 #[inline]
 fn next_char(c: char) -> char {
@@ -72,12 +131,13 @@ fn next_char(c: char) -> char {
 
 #[cfg(test)]
 mod test {
-    use super::{Range, CharClass};
+    use std::char;
+    use super::CharClass;
 
     #[test]
     #[should_fail]
     fn invalid_range() {
-        let _ = Range::new('b', 'a');
+        let _ = CharClass::new(~[('b', 'a')]);
     }
 
     #[test]
@@ -88,13 +148,28 @@ mod test {
 
     #[test]
     fn class_sorted() {
-        let c = CharClass::new(~[Range::new('y', 'z'), Range::new('a', 'b')]);
-        assert_eq!(c.ranges, ~[Range::new('a', 'b'), Range::new('y', 'z')]);
+        let c = CharClass::new(~[('y', 'z'), ('a', 'b')]);
+        assert_eq!(c.ranges(), [('a', 'b'), ('y', 'z')]);
     }
 
     #[test]
     fn class_optimize() {
-        let c = CharClass::new(~[Range::new('a', 'b'), Range::new('c', 'd')]);
-        assert_eq!(c.ranges, ~[Range::new('a', 'd')]);
+        let c = CharClass::new(~[('a', 'b'), ('c', 'd')]);
+        assert_eq!(c.ranges(), [('a', 'd')]);
+    }
+
+    #[test]
+    fn negate_simple() {
+        let c = CharClass::new(~[('T', 's'), ('☻', '♪')]).negate();
+        assert_eq!(c.ranges(), [('\0', 'S'), ('t', '☺'), ('♫', char::MAX)]);
+    }
+
+    #[test]
+    fn negate_edge_case() {
+        let c = CharClass::new(~[('\0', char::MAX)]).negate();
+        assert_eq!(c.ranges(), []);
     }
 }
+
+#[path="charclass/ascii.rs"]
+pub mod ascii;

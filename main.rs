@@ -2,6 +2,7 @@
 #[feature(macro_rules)];
 
 //mod vm;
+mod charclass;
 mod parse;
 
 /*
