@@ -208,8 +208,15 @@ fn p_repetition(s_outer: &mut State) -> Option<(uint, Option<uint>)> {
             Some(',') => {
                 let max = p_number(&mut s);
                 match s.advance() {
-                    // {} or {N,} or {,M} or {N,M}
-                    Some('}') => Some((min.unwrap_or(0), max)),
+                    // {} or {M,} or {,N} or {M,N}
+                    Some('}') => {
+                        let min_ = min.unwrap_or(0);
+                        if check_repeat(min_, max) {
+                            Some((min_, max))
+                        } else {
+                            fail!("bad repeat interval")
+                        }
+                    },
                     _ => None
                 }
             },
@@ -228,6 +235,15 @@ fn p_repetition(s_outer: &mut State) -> Option<(uint, Option<uint>)> {
     }
 
     result
+}
+
+
+#[inline]
+fn check_repeat(min: uint, max: Option<uint>) -> bool {
+    match max {
+        Some(max_) => min <= max_,
+        None => true
+    }
 }
 
 
