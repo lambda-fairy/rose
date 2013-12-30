@@ -14,8 +14,7 @@ pub enum Expr {
     Concatenate(~[Expr]),
     Alternate(~[Expr]),
     Repeat(~Expr, uint, Option<uint>, Greedy),
-    Capture(~Expr),
-    Assertion(AssertType, ~Expr)
+    Capture(~Expr)
 }
 
 
@@ -23,13 +22,6 @@ pub enum Expr {
 pub enum Greedy {
     NonGreedy,
     Greedy
-}
-
-
-#[deriving(ToStr)]
-pub enum AssertType {
-    Positive,
-    Negative
 }
 
 
@@ -275,8 +267,6 @@ fn p_group(s: &mut State) -> Expr {
             Some(c) => match c {
                 ':' => p_alternate(s),
                 '#' => p_comment(s),
-                '=' => Assertion(Positive, ~p_alternate(s)),
-                '!' => Assertion(Negative, ~p_alternate(s)),
                 _ => fail!(format!("unknown extension: ?{}", c))
             },
             None => fail!("unexpected end of pattern")

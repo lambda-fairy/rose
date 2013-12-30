@@ -19,5 +19,5 @@ fn main() {
 */
 
 fn main() {
-    println!("{:?}", parse::parse("(?=a|b){,234}?c"))
+    println!("{:?}", parse::parse("(?:a|b){,234}?c"))
 }
