@@ -317,6 +317,10 @@ fn p_escape(s: &mut State) -> CharClass {
             's' => ascii::space,
             'w' => ascii::word,
 
+            'D' => ascii::digit.negate(),
+            'S' => ascii::space.negate(),
+            'W' => ascii::word.negate(),
+
             'x' => p_hex_escape(s, 2),
             'u' => p_hex_escape(s, 4),
             'U' => p_hex_escape(s, 8),
