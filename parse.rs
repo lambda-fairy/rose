@@ -2,6 +2,9 @@
 
 use std::char;
 
+use charclass::CharClass;
+use charclass::ascii;
+
 
 /// A regular expression AST.
 #[deriving(ToStr)]
@@ -127,6 +130,7 @@ fn p_concatenate(s: &mut State) -> Expr {
                 '|' | ')' => { s.retreat(); break },
                 '(' => push_ignore_empty(&mut items, p_group(s)),
                 '.' => items.push(Range('\0', char::MAX)),
+                '\\' => items.push(cc_to_expr(p_escape(s))),
                 '?' => {
                     let e = pop_expr(&mut items);
                     items.push(match e {
@@ -280,4 +284,46 @@ fn p_comment(s: &mut State) -> Expr {
         }
     }
     Empty
+}
+
+
+/// Parse an escape sequence (e.g. `\d`), sans the leading backslash.
+fn p_escape(s: &mut State) -> CharClass {
+    match s.advance() {
+        Some(c) => match c {
+            'n' => CharClass::from_char('\n'),
+            'r' => CharClass::from_char('\r'),
+            't' => CharClass::from_char('\t'),
+
+            'd' => ascii::digit,
+            's' => ascii::space,
+            'w' => ascii::word,
+
+            'x' => p_hex_escape(s, 2),
+            'u' => p_hex_escape(s, 4),
+            'U' => p_hex_escape(s, 8),
+
+            _ => fail!("invalid escape")
+        },
+        None => fail!("invalid escape")
+    }
+}
+
+
+fn p_hex_escape(s: &mut State, n_digits: uint) -> CharClass {
+    let mut acc = 0u32;
+    for _ in range(0, n_digits) {
+        acc = 16 * acc + match s.advance() {
+            Some(c) => c.to_digit(16).expect("invalid escape") as u32,
+            _ => fail!("invalid escape")
+        };
+    }
+    let c = char::from_u32(acc).expect("character out of range");
+    CharClass::from_char(c)
+}
+
+
+/// Reify a character class as an `Expr`.
+fn cc_to_expr(cc: CharClass) -> Expr {
+    Alternate(cc.ranges().iter().map(|&(lo, hi)| Range(lo, hi)).collect())
 }
