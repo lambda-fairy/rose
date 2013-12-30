@@ -315,6 +315,8 @@ fn p_escape(s: &mut State) -> CharClass {
             'u' => p_hex_escape(s, 4),
             'U' => p_hex_escape(s, 8),
 
+            _ if ascii::punct.includes(c) => CharClass::from_char(c),
+
             _ => fail!("invalid escape")
         },
         None => fail!("invalid escape")

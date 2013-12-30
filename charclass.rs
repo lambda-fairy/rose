@@ -75,6 +75,19 @@ impl CharClass {
         }
     }
 
+    /// Determine if the character is contained in the class.
+    pub fn includes(&self, c: char) -> bool {
+        self.ranges().bsearch(|&(lo, hi)| {
+            if c < lo {
+                Greater
+            } else if hi < c {
+                Less
+            } else {
+                Equal
+            }
+        }).is_some()
+    }
+
     /// Return the negation of the character class.
     pub fn negate(&self) -> CharClass {
         let ranges = self.ranges();
@@ -158,6 +171,13 @@ mod test {
     fn class_optimize() {
         let c = CharClass::new(~[('a', 'b'), ('c', 'd')]);
         assert_eq!(c.ranges(), [('a', 'd')]);
+    }
+
+    #[test]
+    fn class_includes() {
+        let c = CharClass::new(~[('a', 'b'), ('i', 'j'), ('y', 'z')]);
+        assert!(c.includes('b'));
+        assert!(c.includes('y'));
     }
 
     #[test]
