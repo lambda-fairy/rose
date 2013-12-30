@@ -56,10 +56,12 @@ impl CharClass {
         CharClass::new(~[(c, c)])
     }
 
+    ///
     /// Get the list of ranges contained in the character class.
     ///
     /// The returned vector is always sorted, with no overlapping
     /// ranges.
+    ///
     pub fn ranges<'a>(&'a self) -> &'a [Range] {
         match *self {
             CCOwned(ref r) => {

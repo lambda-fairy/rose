@@ -90,6 +90,7 @@ impl<'a> State<'a> {
 }
 
 
+///
 /// Parse alternation, e.g. `ducks|geese|swans`.
 ///
 /// An alternation consists of zero or more concatenations, separated by
@@ -185,6 +186,7 @@ fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
 }
 
 
+///
 /// Parse a counted repetition (e.g. `a{2,3}`), sans the opening brace.
 ///
 /// The following syntaxes are accepted:
