@@ -131,13 +131,13 @@ fn p_concatenate(s: &mut State) -> Expr {
                         Repeat(inner, min, max, Greedy) =>
                             Repeat(inner, min, max, NonGreedy),
                         _ => Repeat(~e, 0, Some(1), Greedy)
-                    })
+                    });
                 },
                 '+' => add_repeat(&mut items, 1, None),
                 '*' => add_repeat(&mut items, 0, None),
-                '{' => match p_repetition(s) {
-                    Some((min, max)) => add_repeat(&mut items, min, max),
-                    None => items.push(Range(c, c))
+                '{' => {
+                    let (min, max) = p_repetition(s);
+                    add_repeat(&mut items, min, max);
                 },
                 _ => items.push(Range(c, c))
             },
@@ -189,46 +189,31 @@ fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
 /// * `{M,N}` – from M to N inclusive;
 /// * `{,}` – zero or more (synonymous with `*`).
 ///
-/// If parsing fails, return `None` without consuming input.  This
-/// matches Python behavior, where invalid repetitions are ignored.
-///
-fn p_repetition(s_outer: &mut State) -> Option<(uint, Option<uint>)> {
-    // Clone the parser state, so we can backtrack on failure
-    let mut s = s_outer.clone();
-
-    let result = {
-        let min = p_number(&mut s);
-        match s.advance() {
-            Some(',') => {
-                let max = p_number(&mut s);
-                match s.advance() {
-                    // {} or {M,} or {,N} or {M,N}
-                    Some('}') => {
-                        let min_ = min.unwrap_or(0);
-                        if check_repeat(min_, max) {
-                            Some((min_, max))
-                        } else {
-                            fail!("bad repeat interval")
-                        }
-                    },
-                    _ => None
-                }
-            },
-            Some('}') => match min {
-                // {N}
-                Some(n) => Some((n, Some(n))),
-                _ => None
-            },
-            _ => None
-        }
-    };
-
-    if result.is_some() {
-        // Only consume input if parsing was successful
-        s_outer.clone_from(&s);
+fn p_repetition(s: &mut State) -> (uint, Option<uint>) {
+    let min = p_number(s);
+    match s.advance() {
+        Some(',') => {
+            let max = p_number(s);
+            match s.advance() {
+                // {} or {M,} or {,N} or {M,N}
+                Some('}') => {
+                    let min_ = min.unwrap_or(0);
+                    if check_repeat(min_, max) {
+                        (min_, max)
+                    } else {
+                        fail!("bad repeat interval")
+                    }
+                },
+                _ => fail!("invalid repeat")
+            }
+        },
+        Some('}') => match min {
+            // {N}
+            Some(n) => (n, Some(n)),
+            _ => fail!("invalid repeat")
+        },
+        _ => fail!("invalid repeat")
     }
-
-    result
 }
 
 
