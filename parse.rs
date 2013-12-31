@@ -13,7 +13,7 @@ pub enum Expr {
     Range(char, char),
     Concatenate(~[Expr]),
     Alternate(~[Expr]),
-    Repeat(~Expr, uint, Option<uint>, Greedy),
+    Repeat(~Expr, u32, Option<u32>, Greedy),
     Capture(~Expr)
 }
 
@@ -169,7 +169,7 @@ fn pop_expr(items: &mut ~[Expr]) -> Expr {
 
 
 #[inline]
-fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
+fn add_repeat(items: &mut ~[Expr], min: u32, max: Option<u32>) {
     let e = pop_expr(items);
     items.push(match e {
         Repeat(..) => fail!("multiple repeat"),
@@ -189,7 +189,7 @@ fn add_repeat(items: &mut ~[Expr], min: uint, max: Option<uint>) {
 /// * `{M,N}` – from M to N inclusive;
 /// * `{,}` – zero or more (synonymous with `*`).
 ///
-fn p_repetition(s: &mut State) -> (uint, Option<uint>) {
+fn p_repetition(s: &mut State) -> (u32, Option<u32>) {
     let min = p_number(s);
     match s.advance() {
         Some(',') => {
@@ -218,7 +218,7 @@ fn p_repetition(s: &mut State) -> (uint, Option<uint>) {
 
 
 #[inline]
-fn check_repeat(min: uint, max: Option<uint>) -> bool {
+fn check_repeat(min: u32, max: Option<u32>) -> bool {
     match max {
         Some(max_) => min <= max_,
         None => true
@@ -226,15 +226,24 @@ fn check_repeat(min: uint, max: Option<uint>) -> bool {
 }
 
 
-/// Parse a non-negative integer, returning `None` on failure.
-fn p_number(s: &mut State) -> Option<uint> {
+///
+/// Parse a non-negative integer, and return it as a `u32`.
+///
+/// This returns `None` if no number could be parsed, but fails directly
+/// if the number is too large to fit.
+///
+fn p_number(s: &mut State) -> Option<u32> {
     let mut acc = None;
     loop {
         match s.advance() {
             Some(c) if '0' <= c && c <= '9' => {
-                let digit = c as uint - '0' as uint;
+                let digit = c as u32 - '0' as u32;
                 acc = Some(match acc {
-                    Some(n) => 10 * n + digit,
+                    Some(n) => {
+                        // 10 * n + digit
+                        let shifted = 10u32.checked_mul(&n).expect("number too large");
+                        shifted.checked_add(&digit).expect("number too large")
+                    },
                     None => digit
                 });
             },
