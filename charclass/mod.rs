@@ -169,12 +169,17 @@ mod test {
 
     #[test]
     fn class_optimize() {
-        let c = CharClass::new(~[('a', 'b'), ('c', 'd')]);
-        assert_eq!(c.ranges(), [('a', 'd')]);
+        let c1 = CharClass::new(~[('a', 'b'), ('c', 'd')]);  // touching
+        let c2 = CharClass::new(~[('a', 'c'), ('b', 'd')]);  // overlapping
+        let c3 = CharClass::new(~[('a', 'd'), ('b', 'c')]);  // contained
+        assert_eq!(c1.ranges(), [('a', 'd')]);
+        assert_eq!(c2.ranges(), [('a', 'd')]);
+        assert_eq!(c3.ranges(), [('a', 'd')]);
     }
 
     #[test]
     fn class_includes() {
+        // This will fail if the bsearch is incorrect
         let c = CharClass::new(~[('a', 'b'), ('i', 'j'), ('y', 'z')]);
         assert!(c.includes('b'));
         assert!(c.includes('y'));
