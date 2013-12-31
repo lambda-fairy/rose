@@ -193,5 +193,4 @@ mod test {
     }
 }
 
-#[path="charclass/ascii.rs"]
 pub mod ascii;
