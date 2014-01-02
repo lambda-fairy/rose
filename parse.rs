@@ -25,6 +25,16 @@ pub enum Greedy {
 }
 
 
+///
+/// The maximum number of repetitions.  Any number larger than this will
+/// cause a syntax error.  By honoring this limit, we prevent integer
+/// overflow bugs in the library.
+///
+/// The value (100000) is taken from Ruby.
+///
+static REPEAT_MAX: u32 = 100000;
+
+
 /// Parse a regular expression into an AST.  Fails on invalid syntax.
 pub fn parse(input: &str) -> Expr {
     let mut s = State::new(input);
@@ -231,7 +241,7 @@ fn check_repeat(min: u32, max: Option<u32>) -> bool {
 /// Parse a non-negative integer, and return it as a `u32`.
 ///
 /// This returns `None` if no number could be parsed, but fails directly
-/// if the number is too large to fit.
+/// if the number is greater than `REPEAT_MAX`.
 ///
 fn p_number(s: &mut State) -> Option<u32> {
     let mut acc = None;
@@ -241,9 +251,12 @@ fn p_number(s: &mut State) -> Option<u32> {
                 let digit = c as u32 - '0' as u32;
                 acc = Some(match acc {
                     Some(n) => {
-                        // 10 * n + digit
-                        let shifted = 10u32.checked_mul(&n).expect("number too large");
-                        shifted.checked_add(&digit).expect("number too large")
+                        let acc_ = 10 * n + digit;
+                        if acc_ <= REPEAT_MAX {
+                            acc_
+                        } else {
+                            fail!(format!("repeat must be <= {}", REPEAT_MAX))
+                        }
                     },
                     None => digit
                 });
