@@ -5,7 +5,7 @@ use std::cmp::{min, max};
 
 
 /// A range of codepoints.
-type Range = (char, char);
+pub type Range = (char, char);
 
 
 /// A character class is a non-empty collection of ranges.
@@ -56,6 +56,22 @@ impl CharClass {
         CharClass::new(~[(c, c)])
     }
 
+    /// Create a class from a range of code points.
+    pub fn from_range(lo: char, hi: char) -> CharClass {
+        CharClass::new(~[(lo, hi)])
+    }
+
+    /// Combine several classes into one that subsumes them all.
+    pub fn combine(classes: &[CharClass]) -> CharClass {
+        let mut ranges: ~[Range] = ~[];
+        for cc in classes.iter() {
+            for r in cc.ranges().iter() {
+                ranges.push(*r);
+            }
+        }
+        CharClass::new(ranges)
+    }
+
     ///
     /// Get the list of ranges contained in the character class.
     ///
@@ -72,6 +88,15 @@ impl CharClass {
                 let r_borrow: &'a [Range] = r;
                 r_borrow
             }
+        }
+    }
+
+    /// If the class matches a single code point, return it; otherwise
+    /// return `None`.
+    pub fn to_char(&self) -> Option<char> {
+        match self.ranges() {
+            [(lo, hi)] if lo == hi => Some(lo),
+            _ => None
         }
     }
 

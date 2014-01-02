@@ -124,6 +124,7 @@ fn p_concatenate(s: &mut State) -> Expr {
                 '(' => push_ignore_empty(&mut items, p_group(s)),
                 '.' => items.push(Range('\0', char::MAX)),
                 '\\' => items.push(cc_to_expr(p_escape(s))),
+                '[' => items.push(cc_to_expr(p_charclass(s))),
                 '?' => {
                     let e = pop_expr(&mut items);
                     items.push(match e {
@@ -328,6 +329,62 @@ fn p_hex_escape(s: &mut State, n_digits: uint) -> CharClass {
     }
     let c = char::from_u32(acc).expect("character out of range");
     CharClass::from_char(c)
+}
+
+
+/// Parse a character class (e.g. `[a-z]`), sans the opening bracket.
+fn p_charclass(s: &mut State) -> CharClass {
+    let mut classes: ~[CharClass] = ~[];
+
+    let negate = match s.advance() {
+        Some('^') => true,
+        _ => { s.retreat(); false }
+    };
+
+    loop {
+        match s.advance() {
+            Some(c) => match c {
+                ']' => break,
+                '-' => match p_charclass_token(s) {
+                    Some(cc_hi) => match classes.pop_opt() {
+                        Some(cc_lo) => {
+                            // [a-z]
+                            let lo = cc_lo.to_char().expect("bad character range");
+                            let hi = cc_hi.to_char().expect("bad character range");
+                            classes.push(CharClass::from_range(lo, hi));
+                        },
+                        None => classes.push(cc_hi)  // [-z]
+                    },
+                    None => classes.push(CharClass::from_char('-'))  // [a-]
+                },
+                _ => {
+                    s.retreat();
+                    classes.push(p_charclass_token(s).expect("invalid char class"));
+                }
+            },
+            None => fail!("unexpected end of char class")
+        }
+    }
+
+    let cc = CharClass::combine(classes);
+    if negate {
+        cc.negate()
+    } else {
+        cc
+    }
+}
+
+
+fn p_charclass_token(s: &mut State) -> Option<CharClass> {
+    match s.advance() {
+        Some(c) => match c {
+            ']' => { s.retreat(); None },
+            '[' => Some(p_charclass(s)),
+            '\\' => Some(p_escape(s)),
+            _ => Some(CharClass::from_char(c))
+        },
+        None => None
+    }
 }
 
 
