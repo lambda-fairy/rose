@@ -41,7 +41,9 @@ impl CharClass {
                         min(r[cursor].lo(), r[i].lo()),
                         max(r[cursor].hi(), r[i].hi()));
                 } else {
-                    cursor = i;
+                    // Create a new range
+                    cursor += 1;
+                    r[cursor] = r[i];
                 }
             }
             r.truncate(cursor + 1); r.shrink_to_fit();
@@ -220,6 +222,13 @@ mod test {
     fn negate_edge_case() {
         let c = CharClass::new(~[('\0', char::MAX)]).negate();
         assert_eq!(c.ranges(), []);
+    }
+
+    #[test]
+    fn issue_1() {
+        // See <https://github.com/lfairy/rose/issues/1>
+        let c = CharClass::new(~[('c', 'c'), ('d', 'd'), ('z', 'z')]);
+        assert_eq!(c.ranges(), [('c', 'd'), ('z', 'z')]);
     }
 }
 
