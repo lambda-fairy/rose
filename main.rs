@@ -1,4 +1,3 @@
-#[allow(dead_code)];
 #[feature(macro_rules)];
 
 mod charclass;
