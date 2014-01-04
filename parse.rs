@@ -167,7 +167,7 @@ fn p_concatenate(s: &mut State) -> Expr {
 #[inline]
 fn push_ignore_empty(items: &mut ~[Expr], e: Expr) {
     match e {
-        Empty => {},
+        Empty => (),
         _ => items.push(e)
     }
 }
