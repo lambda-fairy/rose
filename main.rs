@@ -1,8 +1,10 @@
 #[feature(macro_rules)];
 
 mod charclass;
+mod compile;
 mod parse;
+mod vm;
 
 fn main() {
-    println!("{:?}", parse::parse("(?:a|b){,234}?c"))
+    println!("{:?}", compile::compile(&parse::parse("(?:ab)*")));
 }
