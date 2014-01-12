@@ -3,8 +3,6 @@
 #[comment = "Super simple regular expression library"];
 
 //!
-//! # Quick start
-//!
 //! ~~~
 //! extern mod rose;
 //!
