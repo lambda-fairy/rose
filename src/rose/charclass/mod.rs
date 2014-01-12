@@ -1,4 +1,6 @@
-/// Character classes
+#[doc(hidden)];
+
+//! Utilities for handling character classes.
 
 use std::char;
 use std::cmp::{min, max};
@@ -140,7 +142,7 @@ impl CharClass {
 }
 
 
-trait RangeUtils {
+priv trait RangeUtils {
     fn lo(&self) -> char;
     fn hi(&self) -> char;
 }

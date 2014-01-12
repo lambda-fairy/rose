@@ -1,21 +1,10 @@
-/// Virtual machine
+//! The regular expression virtual machine.
 
 use std::util::replace;
 
 
-/// A compiled regular expression.
-pub struct Regex {
-    insts: ~[Inst]
-}
-
-impl Regex {
-    /// Create a `Regex` from a vector of instructions.
-    pub fn from_insts(insts: ~[Inst]) -> Regex {
-        Regex {
-            insts: insts
-        }
-    }
-}
+/// A block of code, ready to execute.
+pub type Code = ~[Inst];
 
 
 /// Represents an instruction in the virtual machine.

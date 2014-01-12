@@ -1,15 +1,16 @@
-/// Compiler
+//! Byte code compiler.
 
 use parse;
 use parse::{Expr, Greedy, NonGreedy};
-use vm::{Regex, Inst, Empty, Range, Jump, Fork, GFork, Match};
+use vm::{Code, Inst, Empty, Range, Jump, Fork, GFork, Match};
 
 
-pub fn compile(e: &Expr) -> Regex {
+/// Compile an AST into byte code.
+pub fn compile(e: &Expr) -> Code {
     let mut code: ~[Inst] = ~[];
     compile_expr(&mut code, e);
     code.push(Match);
-    Regex::from_insts(code)
+    code
 }
 
 

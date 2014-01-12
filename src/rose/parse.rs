@@ -1,4 +1,4 @@
-/// Parser
+//! Parser and syntax tree.
 
 use std::char;
 
@@ -18,6 +18,7 @@ pub enum Expr {
 }
 
 
+/// Greediness flag.
 #[deriving(ToStr)]
 pub enum Greedy {
     NonGreedy,
