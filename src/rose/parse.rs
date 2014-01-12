@@ -7,7 +7,6 @@ use charclass::ascii;
 
 
 /// A regular expression AST.
-#[deriving(ToStr)]
 pub enum Expr {
     Empty,
     Range(char, char),
@@ -19,7 +18,6 @@ pub enum Expr {
 
 
 /// Greediness flag.
-#[deriving(ToStr)]
 pub enum Greedy {
     NonGreedy,
     Greedy
@@ -60,7 +58,6 @@ pub fn parse(input: &str) -> Expr {
 
 
 /// The parser state.  This tracks the position in the input string.
-#[deriving(Clone)]
 struct State<'a> {
     input: &'a str,
     prev: Option<&'a str>  // See `State::retreat`
