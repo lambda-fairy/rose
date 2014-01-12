@@ -3,6 +3,21 @@
 use std::util::replace;
 
 
+/// A compiled regular expression.
+pub struct Regex {
+    insts: ~[Inst]
+}
+
+impl Regex {
+    /// Create a `Regex` from a vector of instructions.
+    pub fn from_insts(insts: ~[Inst]) -> Regex {
+        Regex {
+            insts: insts
+        }
+    }
+}
+
+
 /// Represents an instruction in the virtual machine.
 pub enum Inst {
     /// No-op.  Used as a placeholder in the compiler.

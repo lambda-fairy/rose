@@ -2,14 +2,14 @@
 
 use parse;
 use parse::{Expr, Greedy, NonGreedy};
-use vm::{Inst, Empty, Range, Jump, Fork, GFork, Match};
+use vm::{Regex, Inst, Empty, Range, Jump, Fork, GFork, Match};
 
 
-pub fn compile(e: &Expr) -> ~[Inst] {
+pub fn compile(e: &Expr) -> Regex {
     let mut code: ~[Inst] = ~[];
-    compile_(&mut code, e);
+    compile_expr(&mut code, e);
     code.push(Match);
-    code
+    Regex::from_insts(code)
 }
 
 
@@ -22,13 +22,13 @@ macro_rules! placeholder(
 )
 
 
-fn compile_(code: &mut ~[Inst], e: &Expr) {
+fn compile_expr(code: &mut ~[Inst], e: &Expr) {
     match *e {
         parse::Empty => (),
         parse::Range(lo, hi) => code.push(Range(lo, hi)),
         parse::Concatenate(ref inners) => {
             for inner in inners.iter() {
-                compile_(code, inner);
+                compile_expr(code, inner);
             }
         },
         parse::Alternate(ref inners) => compile_alternate(code, *inners),
@@ -58,13 +58,13 @@ fn compile_alternate(code: &mut ~[Inst], inners: &[Expr]) {
 
     for inner in inners.slice_to(inners.len()-1).iter() {
         forks.push(placeholder!());
-        compile_(code, inner);
+        compile_expr(code, inner);
         jumps.push(placeholder!());
         ends.push(code.len());
     }
     // The last subexpr shouldn't have any forks or jumps in it, so we
     // treat it separately
-    compile_(code, &inners[inners.len()-1]);
+    compile_expr(code, &inners[inners.len()-1]);
 
     for (&fork, &next) in forks.iter().zip(ends.iter()) {
         // We either continue matching the current branch, or skip to
@@ -86,7 +86,7 @@ fn compile_repeat(code: &mut ~[Inst], inner: &Expr, min: u32, max: Option<u32>, 
         (_, Some(max_)) => {
             // Compile `min` repetitions
             for _ in range(0, min) {
-                compile_(code, inner);
+                compile_expr(code, inner);
             }
 
             // After we've seen `min` repetitions, the remaining
@@ -94,7 +94,7 @@ fn compile_repeat(code: &mut ~[Inst], inner: &Expr, min: u32, max: Option<u32>, 
             let mut forks = ~[];
             for _ in range(min, max_) {
                 forks.push(placeholder!());
-                compile_(code, inner);
+                compile_expr(code, inner);
             }
 
             let end = code.len();
@@ -114,7 +114,7 @@ fn compile_repeat(code: &mut ~[Inst], inner: &Expr, min: u32, max: Option<u32>, 
             let mut loop_start = 0u;
             for _ in range(0, min) {
                 loop_start = code.len();
-                compile_(code, inner);
+                compile_expr(code, inner);
             }
             let fork = placeholder!();
             code[fork].replace(make_fork(greedy)(loop_start));
