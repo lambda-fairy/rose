@@ -1,4 +1,4 @@
-all: rose doc
+all: rose
 
 clean:
 	rm -fr build/
