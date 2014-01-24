@@ -182,7 +182,7 @@ fn push_ignore_empty(items: &mut ~[Expr], e: Expr) {
 
 #[inline]
 fn pop_expr(items: &mut ~[Expr]) -> Expr {
-    items.pop_opt().expect("nothing to repeat")
+    items.pop().expect("nothing to repeat")
 }
 
 
@@ -366,7 +366,7 @@ fn p_charclass(s: &mut State) -> CharClass {
             Some(c) => match c {
                 ']' => break,
                 '-' => match p_charclass_token(s) {
-                    Some(cc_hi) => match classes.pop_opt() {
+                    Some(cc_hi) => match classes.pop() {
                         Some(cc_lo) => {
                             // [a-z]
                             let lo = cc_lo.to_char().expect("bad character range");
