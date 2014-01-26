@@ -46,6 +46,18 @@ impl Regex {
             code: code
         }
     }
+
+    /// Check if the regex matches the given string.
+    pub fn matches(&self, s: &str) -> bool {
+        let mut vm = vm::VM::new(self.code);
+        for c in s.chars() {
+            vm.feed(c);
+            if vm.is_match() {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 
