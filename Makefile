@@ -1,15 +1,27 @@
-all: rose
+RUSTFLAGS ?=
+OUTDIR ?= build
 
-clean:
-	rm -fr build/
-	rm -fr doc/
+BINDIR := $(OUTDIR)/bin
+DOCDIR := $(OUTDIR)/doc
+LIBDIR := $(OUTDIR)/lib
+TMPDIR := $(OUTDIR)/tmp
 
+RUST_SRC := $(shell find src -type f -name '*.rs')
+
+.PHONY: all
+all: $(TMPDIR)/librose.dummy doc
+
+$(BINDIR) $(DOCDIR) $(LIBDIR) $(TMPDIR):
+	mkdir -p '$@'
+
+$(TMPDIR)/librose.dummy: src/lib.rs $(RUST_SRC) $(LIBDIR) $(TMPDIR)
+	rustc --out-dir '$(LIBDIR)' --lib src/lib.rs $(RUSTFLAGS)
+	touch $@
+
+.PHONY: doc
 doc:
-	cd src/rose && rustdoc lib.rs -o ../../doc
+	rustdoc src/lib.rs -o '$(DOCDIR)'
 
-# rustpkg tracks dependencies automatically, so we don't need to
-# list sources here
-rose:
-	rustpkg build rose
-
-.PHONY: all clean doc rose
+.PHONY: clean
+clean:
+	rm -fr '$(OUTDIR)'
