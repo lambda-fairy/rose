@@ -15,7 +15,7 @@ $(BINDIR) $(DOCDIR) $(LIBDIR) $(TMPDIR):
 	mkdir -p '$@'
 
 $(TMPDIR)/librose.dummy: src/lib.rs $(RUST_SRC) $(LIBDIR) $(TMPDIR)
-	rustc --out-dir '$(LIBDIR)' --lib src/lib.rs $(RUSTFLAGS)
+	rustc --out-dir '$(LIBDIR)' --crate-type=lib src/lib.rs $(RUSTFLAGS)
 	touch $@
 
 .PHONY: doc
