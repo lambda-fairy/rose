@@ -1,8 +1,8 @@
 //! Regular expression virtual machine.
 
 use std;
+use std::mem::swap;
 use std::trie::TrieSet;
-use std::util::swap;
 
 
 /// A compiled regular expression, ready to execute.
