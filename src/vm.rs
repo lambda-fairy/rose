@@ -108,7 +108,7 @@ impl<'a> VM<'a> {
                     if follow(t, *tails, self.states, &mut self.next) {
                         self.matched = true;
                         // Cut off lower priority threads
-                        break;
+                        break
                     }
                 }
             }
