@@ -18,6 +18,7 @@ pub enum Expr {
 
 
 /// Greediness flag.
+#[deriving(Eq)]
 pub enum Greedy {
     NonGreedy,
     Greedy
@@ -133,8 +134,10 @@ fn p_alternate(s: &mut State) -> Expr {
 /// Parse concatenation, e.g. `abc`.
 fn p_concatenate(s: &mut State) -> Expr {
     let mut items: ~[Expr] = ~[];
+    let mut had_repeat = false;
 
     loop {
+        let mut is_repeat = false;
         match s.advance() {
             Some(c) => match c {
                 '|' | ')' => { s.retreat(); break },
@@ -145,22 +148,37 @@ fn p_concatenate(s: &mut State) -> Expr {
                 '?' => {
                     let e = pop_expr(&mut items);
                     items.push(match e {
-                        Repeat(_, _, _, NonGreedy) => fail!("multiple repeat"),
-                        Repeat(inner, min, max, Greedy) =>
-                            Repeat(inner, min, max, NonGreedy),
-                        _ => Repeat(~e, 0, Some(1), Greedy)
+                        Repeat(inner, min, max, greedy) => {
+                            if had_repeat && greedy == Greedy {
+                                Repeat(inner, min, max, NonGreedy)
+                            } else {
+                                fail!("multiple repeat")
+                            }
+                        },
+                        _ => {
+                            is_repeat = true;
+                            Repeat(~e, 0, Some(1), Greedy)
+                        }
                     });
                 },
-                '+' => add_repeat(&mut items, 1, None),
-                '*' => add_repeat(&mut items, 0, None),
+                '+' => {
+                    add_repeat(&mut items, 1, None);
+                    is_repeat = true;
+                },
+                '*' => {
+                    add_repeat(&mut items, 0, None);
+                    is_repeat = true;
+                },
                 '{' => {
                     let (min, max) = p_repetition(s);
                     add_repeat(&mut items, min, max);
+                    is_repeat = true;
                 },
                 _ => items.push(Range(c, c))
             },
             None => break
-        }
+        };
+        had_repeat = is_repeat;
     }
 
     match items {
@@ -411,4 +429,16 @@ fn p_charclass_token(s: &mut State) -> Option<CharClass> {
 /// Reify a character class as an `Expr`.
 fn cc_to_expr(cc: CharClass) -> Expr {
     Alternate(cc.ranges().iter().map(|&(lo, hi)| Range(lo, hi)).collect())
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::parse;
+
+    #[test]
+    #[should_fail]
+    fn issue_3() {
+        let _ = parse("(?:a+)?");  // error: multiple repeat
+    }
 }
