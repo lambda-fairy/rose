@@ -25,11 +25,10 @@
 //! run using its `exec` and `search` methods.
 //!
 
-mod charclass;
 pub mod compile;
 pub mod parse;
 pub mod vm;
-
+mod charclass;
 
 /// A compiled regular expression.  Use [compile](fn.compile.html) to
 /// create one of these.
