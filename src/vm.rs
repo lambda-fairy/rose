@@ -6,7 +6,7 @@ use std::trie::TrieSet;
 
 
 /// A compiled regular expression, ready to execute.
-pub type Program = (~[uint], ~[State]);
+pub type Program = ~[State];
 
 
 /// A single state in the machine.
@@ -14,6 +14,9 @@ pub type State = (Want, ~[uint]);
 
 
 pub enum Want {
+    /// Match the empty string.
+    Nothing,
+
     /// Match any code point in the range, inclusive.
     Range(char, char)
 }
@@ -82,7 +85,7 @@ pub struct VM<'a> {
 }
 
 impl<'a> VM<'a> {
-    pub fn new(&(ref initial, ref states): &'a Program) -> VM<'a> {
+    pub fn new(states: &'a Program) -> VM<'a> {
         let mut vm = VM {
             states: *states,
             threads: ThreadList::new(),
@@ -91,7 +94,7 @@ impl<'a> VM<'a> {
         };
 
         // Add the initial thread
-        vm.matched = follow(Thread::new(0), *initial, vm.states, &mut vm.threads);
+        vm.matched = follow(Thread::new(0), vm.states, &mut vm.threads);
 
         vm
     }
@@ -102,10 +105,11 @@ impl<'a> VM<'a> {
 
         // Run through all the threads
         for &t in self.threads.iter() {
-            let (want, ref tails) = self.states[t.pc];
+            let (want, _) = self.states[t.pc];
             match want {
+                Nothing => fail!("something bad happened; it's pretty bad"),
                 Range(lo, hi) => if lo <= c && c <= hi {
-                    if follow(t, *tails, self.states, &mut self.next) {
+                    if follow(t, self.states, &mut self.next) {
                         self.matched = true;
                         // Cut off lower priority threads
                         break
@@ -128,13 +132,19 @@ impl<'a> VM<'a> {
 
 /// Add the targets of the current instruction to the thread list.
 /// Returns `true` if a matching state is reached; otherwise `false`.
-fn follow(t: Thread, tails: &[uint], states: &[State], threads: &mut ThreadList) -> bool {
+fn follow(t: Thread, states: &[State], threads: &mut ThreadList) -> bool {
     let mut matched = false;
-    for &tail in tails.iter() {
-        if tail == states.len() {
+    let (_, ref exits) = states[t.pc];
+    for &exit in exits.iter() {
+        if exit == states.len() {
             matched = true;
         } else {
-            threads.add(t.with_pc(tail));
+            let (next_want, _) = states[exit];
+            let next_t = t.with_pc(exit);
+            match next_want {
+                Nothing => matched |= follow(next_t, states, threads),
+                Range(..) => threads.add(t.with_pc(exit))
+            };
         }
     }
     matched

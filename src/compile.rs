@@ -1,96 +1,95 @@
 //! State machine compiler.
 
 use std::mem::replace;
+use std::uint::MAX;
 
 use parse;
-use parse::{Expr, NonGreedy};
-use vm::{Program, State, Want, Range};
+use parse::{Expr, Greedy, NonGreedy};
+use vm::{Program, State, Want, Nothing, Range};
 
 
 /// Compile an AST into a `Program`.
 pub fn compile(e: &Expr) -> Program {
-    let mut b = Builder::new();
-    let tails = compile_expr(&mut b, &[(Initial, Low)], e);
+    let (mut b, prev) = Builder::new();
+    let tails = compile_expr(&mut b, prev, e);
     b.reify(tails)
 }
 
 
-type Position = (Pos, Prec);
-
-#[deriving(Clone)]
-enum Pos {
-    Initial,
-    Index(uint)
-}
-
-#[deriving(Clone)]
-enum Prec {
-    Low,
-    High
-}
+type Pos = (uint, uint);
 
 
 struct Builder {
-    initial: ~[uint],
     states: ~[State]
 }
 
 impl Builder {
-    fn new() -> Builder {
-        Builder {
-            initial: ~[],
-            states: ~[]
-        }
+    fn new() -> (Builder, ~[Pos]) {
+        let mut b = Builder { states: ~[(Nothing, ~[])] };
+        let tails = ~[b.reserve(0)];
+        (b, tails)
     }
 
-    fn push(&mut self, w: Want) -> ~[Position] {
-        let tail = self.states.len();
+    fn push(&mut self, prev: &[Pos], w: Want) -> uint {
+        let end = self.states.len();
         self.states.push((w, ~[]));
-        ~[(Index(tail), Low)]
+        self.connect(prev, end);
+        end
     }
 
-    fn connect(&mut self, tails: &[Position]) {
-        let head = self.states.len();
-        for &(pos, prec) in tails.iter() {
-            let targets: &mut ~[uint] = match pos {
-                Initial => &mut self.initial,
-                Index(index) => match self.states[index] {
-                    (_, ref mut targets) => targets
-                }
-            };
-            match prec {
-                Low => targets.push(head),
-                High => targets.insert(0, head)
+    fn push_empty(&mut self, prev: &[Pos]) -> uint {
+        self.push(prev, Nothing)
+    }
+
+    fn reserve(&mut self, index: uint) -> Pos {
+        match self.states[index] {
+            (_, ref mut exits) => {
+                let end = exits.len();
+                exits.push(MAX);
+                (index, end)
+            }
+        }
+    }
+
+    fn connect(&mut self, prev: &[Pos], here: uint) {
+        for &(state, exit) in prev.iter() {
+            match self.states[state] {
+                (_, ref mut exits) => replace(&mut exits[exit], here)
             };
         }
     }
 
-    fn reify(mut self, tails: &[Position]) -> (~[uint], ~[State]) {
-        self.connect(tails);
-        let Builder { initial, states } = self;
-        (initial, states)
+    fn reify(mut self, prev: &[Pos]) -> ~[State] {
+        let end = self.states.len();
+        self.connect(prev, end);
+        let Builder { states } = self;
+        states
     }
 }
 
 
-fn compile_expr(b: &mut Builder, prev: &[Position], e: &Expr) -> ~[Position] {
+fn compile_expr(b: &mut Builder, prev: &[Pos], e: &Expr) -> ~[Pos] {
     match *e {
         parse::Empty => prev.to_owned(),
         parse::Range(lo, hi) => {
-            b.connect(prev);
-            b.push(Range(lo, hi))
+            let end = b.push(prev, Range(lo, hi));
+            ~[b.reserve(end)]
         },
         parse::Concatenate(ref inners) => {
-            let mut tails = prev.to_owned();
+            let mut last = prev.to_owned();
             for inner in inners.iter() {
-                tails = compile_expr(b, tails, inner);
+                last = compile_expr(b, last, inner);
             }
-            tails
+            last
         },
         parse::Alternate(ref inners) => {
+            let fork = {
+                let end = b.push_empty(prev);
+                ~[b.reserve(end)]
+            };
             let mut tails = ~[];
             for inner in inners.iter() {
-                tails.push_all_move(compile_expr(b, prev, inner));
+                tails.push_all_move(compile_expr(b, fork, inner));
             }
             tails
         },
@@ -98,21 +97,20 @@ fn compile_expr(b: &mut Builder, prev: &[Position], e: &Expr) -> ~[Position] {
             let mut tails = ~[];
             let mut last = prev.to_owned();
             for i in range(0, max) {
-                if i >= min {
-                    tails.push_all(last);
-                }
-                last = compile_expr(b, last, *inner);
+                let last_ =
+                    if i < min {
+                        last
+                    } else {
+                        let end = b.push_empty(last);
+                        let x = b.reserve(end); let y = b.reserve(end);
+                        match greedy {
+                            NonGreedy => { tails.push(x); ~[y] },
+                            Greedy    => { tails.push(y); ~[x] }
+                        }
+                    };
+                last = compile_expr(b, last_, *inner);
             }
-
-            if greedy == NonGreedy {
-                // Give all early-exit transitions higher priority
-                for tail in tails.mut_iter() {
-                    let &(pos, _) = tail;
-                    replace(tail, (pos, High));
-                }
-            }
-
-            tails.push_all(last);
+            tails.push_all_move(last);
             tails
         },
         parse::Repeat(..) => fail!("repeats not implemented yet"),
