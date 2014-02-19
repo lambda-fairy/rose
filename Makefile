@@ -1,4 +1,4 @@
-RUSTFLAGS ?=
+RUSTFLAGS ?= -O
 OUTDIR ?= build
 
 BINDIR := $(OUTDIR)/bin
