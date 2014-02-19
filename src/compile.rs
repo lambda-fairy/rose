@@ -93,27 +93,81 @@ fn compile_expr(b: &mut Builder, prev: &[Pos], e: &Expr) -> ~[Pos] {
             }
             tails
         },
-        parse::Repeat(ref inner, min, Some(max), greedy) => {
-            let mut tails = ~[];
-            let mut last = prev.to_owned();
-            for i in range(0, max) {
-                let last_ =
-                    if i < min {
-                        last
-                    } else {
-                        let end = b.push_empty(last);
-                        let x = b.reserve(end); let y = b.reserve(end);
-                        match greedy {
-                            NonGreedy => { tails.push(x); ~[y] },
-                            Greedy    => { tails.push(y); ~[x] }
-                        }
-                    };
-                last = compile_expr(b, last_, *inner);
-            }
-            tails.push_all_move(last);
-            tails
-        },
-        parse::Repeat(..) => fail!("repeats not implemented yet"),
+        parse::Repeat(ref inner, min, max, greedy) => compile_repeat(b, prev, *inner, min, max, greedy),
         parse::Capture(..) => fail!("captures not implemented yet")
     }
+}
+
+
+fn compile_repeat(b: &mut Builder, prev: &[Pos], inner: &Expr, min: u32, max: Option<u32>, greedy: Greedy) -> ~[Pos] {
+    match max {
+        Some(max_) => {
+            // `A{3,6}` => `AAA(A(A(A?)?)?`
+            let last = compile_times(b, prev, inner, min);
+            fn helper(b: &mut Builder, prev: &[Pos], inner: &Expr, count: u32, greedy: Greedy) -> ~[Pos] {
+                if count == 0 {
+                    prev.to_owned()
+                } else {
+                    compile_optional(b, prev, |b_, prev_| {
+                        let last = compile_expr(b_, prev_, inner);
+                        helper(b_, last, inner, count - 1, greedy)
+                    }, greedy)
+                }
+            }
+            helper(b, last, inner, max_ - min, greedy)
+        },
+        None =>
+            if min == 0 {
+                // `A*` => `(A+)?`
+                compile_optional(b, prev, |b_, prev_| compile_plus(b_, prev_, inner, greedy), greedy)
+            } else {
+                // `A{3,}` => `AA(A+)`
+                let last = compile_times(b, prev, inner, min - 1);
+                compile_plus(b, last, inner, greedy)
+            }
+    }
+}
+
+
+fn compile_times(b: &mut Builder, prev: &[Pos], inner: &Expr, times: u32) -> ~[Pos] {
+    let mut last = prev.to_owned();
+    for _ in range(0, times) {
+        last = compile_expr(b, last, inner);
+    }
+    last
+}
+
+
+fn compile_optional(b: &mut Builder, prev: &[Pos], inner: |b_: &mut Builder, prev_: &[Pos]| -> ~[Pos], greedy: Greedy) -> ~[Pos] {
+    let fork = b.push_empty(prev);
+    let x = b.reserve(fork); let y = b.reserve(fork);
+
+    let mut tails = ~[];
+    let prev_ = &[match greedy {
+        NonGreedy => { tails.push(x); y },
+        Greedy    => { tails.push(y); x }
+    }];
+
+    tails.push_all_move(inner(b, prev_));
+
+    tails
+}
+
+
+fn compile_plus(b: &mut Builder, prev: &[Pos], inner: &Expr, greedy: Greedy) -> ~[Pos] {
+    let start = b.states.len();
+    let last = compile_expr(b, prev, inner);
+
+    let fork = b.push_empty(last);
+    let x = b.reserve(fork); let y = b.reserve(fork);
+
+    let mut tails = ~[];
+    let loopback = &[match greedy {
+        NonGreedy => { tails.push(x); y },
+        Greedy    => { tails.push(y); x }
+    }];
+
+    b.connect(loopback, start);
+
+    tails
 }
