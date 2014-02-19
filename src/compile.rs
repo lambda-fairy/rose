@@ -24,12 +24,14 @@ struct Builder {
 }
 
 impl Builder {
+    /// Construct a `Builder`.
     fn new() -> (Builder, ~[Pos]) {
         let mut b = Builder { states: ~[(Nothing, ~[])] };
         let tails = ~[b.reserve(0)];
         (b, tails)
     }
 
+    /// Push a new state, and connect the given edges to it.
     fn push(&mut self, prev: &[Pos], w: Want) -> uint {
         let end = self.states.len();
         self.states.push((w, ~[]));
@@ -37,28 +39,36 @@ impl Builder {
         end
     }
 
+    /// Push an empty transition.
     fn push_empty(&mut self, prev: &[Pos]) -> uint {
         self.push(prev, Nothing)
     }
 
+    /// Draw a dangling edge coming out of the specified state.  The
+    /// returned `Pos` should eventually be linked using `connect`.
     fn reserve(&mut self, index: uint) -> Pos {
         match self.states[index] {
             (_, ref mut exits) => {
                 let end = exits.len();
-                exits.push(MAX);
+                exits.push(MAX);  // Placeholder
                 (index, end)
             }
         }
     }
 
+    /// Connect all given dangling edges to a point.
     fn connect(&mut self, prev: &[Pos], here: uint) {
         for &(state, exit) in prev.iter() {
             match self.states[state] {
-                (_, ref mut exits) => replace(&mut exits[exit], here)
+                (_, ref mut exits) => {
+                    assert!(exits[exit] == MAX, "edge has not yet been connected");
+                    replace(&mut exits[exit], here)
+                }
             };
         }
     }
 
+    /// Return the completed machine, consuming itself in the process.
     fn reify(mut self, prev: &[Pos]) -> ~[State] {
         let end = self.states.len();
         self.connect(prev, end);

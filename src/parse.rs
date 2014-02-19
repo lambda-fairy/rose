@@ -24,15 +24,6 @@ pub enum Greedy {
     Greedy
 }
 
-impl Not<Greedy> for Greedy {
-    fn not(&self) -> Greedy {
-        match *self {
-            NonGreedy => Greedy,
-            Greedy => NonGreedy
-        }
-    }
-}
-
 
 ///
 /// The maximum number of repetitions.  Any number larger than this will
