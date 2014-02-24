@@ -114,11 +114,7 @@ fn p_alternate(s: &mut State) -> Expr {
         }
     }
 
-    match items {
-        [] => Empty,
-        [e] => e,
-        _ => Alternate(items)
-    }
+    wrap_in(Concatenate, items)
 }
 
 
@@ -172,10 +168,16 @@ fn p_concatenate(s: &mut State) -> Expr {
         had_repeat = is_repeat;
     }
 
-    match items {
-        [] => Empty,
-        [e] => e,
-        _ => Concatenate(items)
+    wrap_in(Concatenate, items)
+}
+
+
+#[inline]
+fn wrap_in(wrapper: fn(~[Expr]) -> Expr, mut items: ~[Expr]) -> Expr {
+    match items.len() {
+        0 => Empty,
+        1 => items.pop().unwrap(),
+        _ => wrapper(items)
     }
 }
 
