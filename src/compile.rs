@@ -1,183 +1,127 @@
 //! State machine compiler.
 
-use std::mem::replace;
-use std::uint::MAX;
-
 use parse;
 use parse::{Expr, Greedy, NonGreedy};
-use vm::{Program, State, Want, Nothing, Range};
+use vm::{Program, Inst, Jump, Range};
 
 
 /// Compile an AST into a `Program`.
 pub fn compile(e: &Expr) -> Program {
-    let (mut b, prev) = Builder::new();
-    let tails = compile_expr(&mut b, prev, e);
-    b.reify(tails)
+    let mut p = ~[];
+    compile_expr(&mut p, e);
+    p
 }
 
 
-type Pos = (uint, uint);
-
-
-struct Builder {
-    states: ~[State]
+/// Extension methods that simplify the compiler.
+trait CompileExts {
+    fn push_jump(&mut self);
+    fn jumps<'a>(&'a mut self, index: uint) -> &'a mut ~[uint];
 }
 
-impl Builder {
-    /// Construct a `Builder`.
-    fn new() -> (Builder, ~[Pos]) {
-        let mut b = Builder { states: ~[(Nothing, ~[])] };
-        let tails = ~[b.reserve(0)];
-        (b, tails)
+impl CompileExts for ~[Inst] {
+    fn push_jump(&mut self) {
+        self.push(Jump(~[]));
     }
 
-    /// Push a new state, and connect the given edges to it.
-    fn push(&mut self, prev: &[Pos], w: Want) -> uint {
-        let end = self.states.len();
-        self.states.push((w, ~[]));
-        self.connect(prev, end);
-        end
-    }
-
-    /// Push an empty transition.
-    fn push_empty(&mut self, prev: &[Pos]) -> uint {
-        self.push(prev, Nothing)
-    }
-
-    /// Draw a dangling edge coming out of the specified state.  The
-    /// returned `Pos` should eventually be linked using `connect`.
-    fn reserve(&mut self, index: uint) -> Pos {
-        match self.states[index] {
-            (_, ref mut exits) => {
-                let end = exits.len();
-                exits.push(MAX);  // Placeholder
-                (index, end)
-            }
+    fn jumps<'a>(&'a mut self, index: uint) -> &'a mut ~[uint] {
+        match self[index] {
+            Jump(ref mut exits) => exits,
+            _ => fail!("something bad happened; it's really bad")
         }
     }
-
-    /// Connect all given dangling edges to a point.
-    fn connect(&mut self, prev: &[Pos], here: uint) {
-        for &(state, exit) in prev.iter() {
-            match self.states[state] {
-                (_, ref mut exits) => {
-                    assert!(exits[exit] == MAX, "edge has not yet been connected");
-                    replace(&mut exits[exit], here)
-                }
-            };
-        }
-    }
-
-    /// Return the completed machine, consuming itself in the process.
-    fn reify(mut self, prev: &[Pos]) -> ~[State] {
-        let end = self.states.len();
-        self.connect(prev, end);
-        let Builder { states } = self;
-        states
-    }
 }
 
 
-fn compile_expr(b: &mut Builder, prev: &[Pos], e: &Expr) -> ~[Pos] {
+macro_rules! record(
+    () => (
+        p.len()
+    );
+    ($list:expr) => (
+        $list.push(p.len())
+    )
+)
+
+
+fn compile_expr(p: &mut Program, e: &Expr) {
     match *e {
-        parse::Empty => prev.to_owned(),
-        parse::Range(lo, hi) => {
-            let end = b.push(prev, Range(lo, hi));
-            ~[b.reserve(end)]
-        },
+        parse::Empty => (),
+        parse::Range(lo, hi) => p.push(Range(lo, hi)),
         parse::Concatenate(ref inners) => {
-            let mut last = prev.to_owned();
+            // Execute all children, one after the other
             for inner in inners.iter() {
-                last = compile_expr(b, last, inner);
+                compile_expr(p, inner);
             }
-            last
         },
         parse::Alternate(ref inners) => {
-            let fork = {
-                let end = b.push_empty(prev);
-                ~[b.reserve(end)]
-            };
+            let fork = record!(); p.push_jump();
+
+            let mut heads = ~[];
             let mut tails = ~[];
-            for inner in inners.iter() {
-                tails.push_all_move(compile_expr(b, fork, inner));
+            for (i, inner) in inners.iter().enumerate() {
+                record!(heads); compile_expr(p, inner);
+                if i != inners.len() - 1 {
+                    record!(tails); p.push_jump();
+                }
             }
-            tails
+
+            p.jumps(fork).push_all_move(heads);
+
+            let end = p.len();
+            for tail in tails.move_iter() {
+                p.jumps(tail).push(end);
+            }
         },
-        parse::Repeat(ref inner, min, max, greedy) => compile_repeat(b, prev, *inner, min, max, greedy),
+        parse::Repeat(ref inner, min, max, greedy) => compile_repeat(p, *inner, min, max, greedy),
         parse::Capture(..) => fail!("captures not implemented yet")
     }
 }
 
 
-fn compile_repeat(b: &mut Builder, prev: &[Pos], inner: &Expr, min: u32, max: Option<u32>, greedy: Greedy) -> ~[Pos] {
-    match max {
-        Some(max_) => {
-            // `A{3,6}` => `AAA(A(A(A?)?)?`
-            let last = compile_times(b, prev, inner, min);
-            fn helper(b: &mut Builder, prev: &[Pos], inner: &Expr, count: u32, greedy: Greedy) -> ~[Pos] {
-                if count == 0 {
-                    prev.to_owned()
-                } else {
-                    compile_optional(b, prev, |b_, prev_| {
-                        let last = compile_expr(b_, prev_, inner);
-                        helper(b_, last, inner, count - 1, greedy)
-                    }, greedy)
-                }
+fn compile_repeat(p: &mut Program, inner: &Expr, min: u32, max: Option<u32>, greedy: Greedy) {
+    match (min, max) {
+        (_, Some(max_)) => {
+            // Compile `min` repetitions
+            for _ in range(0, min) {
+                compile_expr(p, inner);
             }
-            helper(b, last, inner, max_ - min, greedy)
+
+            // Compile `max - min` optional repetitions
+            let mut forks = ~[];
+            for _ in range(min, max_) {
+                record!(forks); p.push_jump();
+                compile_expr(p, inner);
+            }
+
+            let end = p.len();
+            for fork in forks.move_iter() {
+                draw_fork(p.jumps(fork), 1+fork, end, greedy);
+            }
         },
-        None =>
-            if min == 0 {
-                // `A*` => `(A+)?`
-                compile_optional(b, prev, |b_, prev_| compile_plus(b_, prev_, inner, greedy), greedy)
-            } else {
-                // `A{3,}` => `AA(A+)`
-                let last = compile_times(b, prev, inner, min - 1);
-                compile_plus(b, last, inner, greedy)
+        (0, None) => {
+            let fork = record!();
+            compile_repeat(p, inner, 1, None, greedy);
+            let end = p.len();
+            draw_fork(p.jumps(fork), 1+fork, end, greedy);
+        },
+        (_, None) => {
+            for _ in range(0, min-1) {
+                compile_expr(p, inner);
             }
+
+            // Draw a loop around the last repetition
+            let start = record!();
+            compile_expr(p, inner);
+            let loopy = record!(); p.push_jump();
+            draw_fork(p.jumps(loopy), start, 1+loopy, greedy);
+        }
     }
 }
 
 
-fn compile_times(b: &mut Builder, prev: &[Pos], inner: &Expr, times: u32) -> ~[Pos] {
-    let mut last = prev.to_owned();
-    for _ in range(0, times) {
-        last = compile_expr(b, last, inner);
+fn draw_fork(jumps: &mut ~[uint], persist: uint, escape: uint, greedy: Greedy) {
+    match greedy {
+        NonGreedy => { jumps.push(escape); jumps.push(persist); },
+        Greedy    => { jumps.push(persist); jumps.push(escape); }
     }
-    last
-}
-
-
-fn compile_optional(b: &mut Builder, prev: &[Pos], inner: |b_: &mut Builder, prev_: &[Pos]| -> ~[Pos], greedy: Greedy) -> ~[Pos] {
-    let fork = b.push_empty(prev);
-    let x = b.reserve(fork); let y = b.reserve(fork);
-
-    let mut tails = ~[];
-    let prev_ = &[match greedy {
-        NonGreedy => { tails.push(x); y },
-        Greedy    => { tails.push(y); x }
-    }];
-
-    tails.push_all_move(inner(b, prev_));
-
-    tails
-}
-
-
-fn compile_plus(b: &mut Builder, prev: &[Pos], inner: &Expr, greedy: Greedy) -> ~[Pos] {
-    let start = b.states.len();
-    let last = compile_expr(b, prev, inner);
-
-    let fork = b.push_empty(last);
-    let x = b.reserve(fork); let y = b.reserve(fork);
-
-    let mut tails = ~[];
-    let loopback = &[match greedy {
-        NonGreedy => { tails.push(x); y },
-        Greedy    => { tails.push(y); x }
-    }];
-
-    b.connect(loopback, start);
-
-    tails
 }

@@ -25,6 +25,8 @@
 //! run using its `exec` and `search` methods.
 //!
 
+#[feature(macro_rules)];
+
 pub mod compile;
 pub mod parse;
 pub mod vm;

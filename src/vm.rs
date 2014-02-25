@@ -6,16 +6,14 @@ use std::trie::TrieSet;
 
 
 /// A compiled regular expression, ready to execute.
-pub type Program = ~[State];
+pub type Program = ~[Inst];
 
 
-/// A single state in the machine.
-pub type State = (Want, ~[uint]);
-
-
-pub enum Want {
-    /// Match the empty string.
-    Nothing,
+/// A single instruction in the program.
+pub enum Inst {
+    /// Jump to all locations in the list simultaneously.  This
+    /// corresponds to `jmp` and `split` in the original paper.
+    Jump(~[uint]),
 
     /// Match any code point in the range, inclusive.
     Range(char, char)
@@ -78,7 +76,7 @@ impl ThreadList {
 
 /// A regular expression virtual machine, loosely based on the Pike VM.
 pub struct VM<'a> {
-    priv states: &'a [State],
+    priv states: &'a [Inst],
     priv threads: ThreadList,
     priv next: ThreadList,
     priv matched: bool
@@ -105,16 +103,15 @@ impl<'a> VM<'a> {
 
         // Run through all the threads
         for &t in self.threads.iter() {
-            let (want, _) = self.states[t.pc];
-            match want {
-                Nothing => fail!("something bad happened; it's pretty bad"),
+            match self.states[t.pc] {
                 Range(lo, hi) => if lo <= c && c <= hi {
-                    if follow(t, self.states, &mut self.next) {
+                    if follow(t.with_pc(1 + t.pc), self.states, &mut self.next) {
                         self.matched = true;
                         // Cut off lower priority threads
                         break
                     }
-                }
+                },
+                Jump(..) => unreachable!()
             }
         }
 
@@ -130,22 +127,21 @@ impl<'a> VM<'a> {
 }
 
 
-/// Add the targets of the current instruction to the thread list.
+/// Add all targets of the given thread to the thread list.
 /// Returns `true` if a matching state is reached; otherwise `false`.
-fn follow(t: Thread, states: &[State], threads: &mut ThreadList) -> bool {
-    let mut matched = false;
-    let (_, ref exits) = states[t.pc];
-    for &exit in exits.iter() {
-        if exit == states.len() {
-            matched = true;
-        } else {
-            let (next_want, _) = states[exit];
-            let next_t = t.with_pc(exit);
-            match next_want {
-                Nothing => matched |= follow(next_t, states, threads),
-                Range(..) => threads.add(t.with_pc(exit))
-            };
+fn follow(t: Thread, states: &[Inst], threads: &mut ThreadList) -> bool {
+    if t.pc == states.len() {
+        true
+    } else {
+        match states[t.pc] {
+            Jump(ref exits) => {
+                let mut matched = false;
+                for &exit in exits.iter() {
+                    matched |= follow(t.with_pc(exit), states, threads);
+                }
+                matched
+            },
+            Range(..) => { threads.add(t); false }
         }
     }
-    matched
 }
