@@ -2,7 +2,7 @@
 
 use std;
 use std::mem::swap;
-use std::trie::TrieSet;
+use collections::TrieSet;
 
 
 /// A compiled regular expression, ready to execute.

@@ -27,6 +27,8 @@
 
 #[feature(macro_rules)];
 
+extern crate collections = "collections#0.10-pre";
+
 pub mod compile;
 pub mod parse;
 pub mod vm;
