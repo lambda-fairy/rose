@@ -127,7 +127,7 @@ fn p_alternate(s: &mut State) -> Expr {
         }
     }
 
-    wrap_in(Concatenate, items)
+    wrap_in(Alternate, items)
 }
 
 
@@ -451,7 +451,13 @@ mod test {
 
     #[test]
     #[should_fail]
-    fn issue_4() {
-        let _ = parse("(?:)+");  // error: cannot repeat the empty string
+    fn issue_4_a() {
+        let _ = parse("()+");  // error: cannot repeat the empty string
+    }
+
+    #[test]
+    #[should_fail]
+    fn issue_4_b() {
+        let _ = parse("(?:a|b|)*");  // error: cannot repeat the empty string
     }
 }
