@@ -448,4 +448,10 @@ mod test {
     fn issue_3() {
         let _ = parse("(?:a+)?");  // error: multiple repeat
     }
+
+    #[test]
+    #[should_fail]
+    fn issue_4() {
+        let _ = parse("(?:)+");  // error: cannot repeat the empty string
+    }
 }
