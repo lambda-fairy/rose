@@ -16,6 +16,19 @@ pub enum Expr {
     Capture(~Expr)
 }
 
+impl Expr {
+    pub fn accepts_empty(&self) -> bool {
+        match *self {
+            Empty => true,
+            Range(..) => false,
+            Concatenate(ref inners) => inners.iter().all(|e| e.accepts_empty()),
+            Alternate(ref inners) => inners.iter().any(|e| e.accepts_empty()),
+            Repeat(ref inner, min, _, _) => min == 0 || inner.accepts_empty(),
+            Capture(ref inner) => inner.accepts_empty()
+        }
+    }
+}
+
 
 /// Greediness flag.
 #[deriving(Eq)]
@@ -202,6 +215,7 @@ fn add_repeat(items: &mut ~[Expr], min: u32, max: Option<u32>) {
     let e = pop_expr(items);
     items.push(match e {
         Repeat(..) => fail!("multiple repeat"),
+        _ if max.is_none() && e.accepts_empty() => fail!("cannot repeat the empty string"),
         _ => Repeat(~e, min, max, Greedy)
     })
 }
