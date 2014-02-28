@@ -16,24 +16,39 @@ pub enum Inst {
     Jump(~[uint]),
 
     /// Match any code point in the range, inclusive.
-    Range(char, char)
+    Range(char, char),
+
+    /// Save the current position in the specified register.
+    Save(uint)
 }
 
 
 struct Thread {
-    pc: uint
+    pc: uint,
+    registers: ~[Option<u64>]
 }
 
 impl Thread {
     fn new(pc: uint) -> Thread {
         Thread {
-            pc: pc
+            pc: pc,
+            registers: ~[]
         }
     }
 
     fn with_pc(&self, pc: uint) -> Thread {
         Thread {
-            pc: pc
+            pc: pc,
+            registers: self.registers.clone()
+        }
+    }
+
+    fn with_reg(&self, reg: uint, data: Option<u64>) -> Thread {
+        let mut registers = self.registers.clone();
+        registers.grow_set(reg, &None, data);
+        Thread {
+            pc: 1 + self.pc,
+            registers: registers
         }
     }
 }
@@ -77,6 +92,7 @@ impl ThreadList {
 /// A regular expression virtual machine, loosely based on the Pike VM.
 pub struct VM<'a> {
     priv states: &'a [Inst],
+    priv index: Option<u64>,
     priv threads: ThreadList,
     priv next: ThreadList,
     priv matched: bool
@@ -86,32 +102,34 @@ impl<'a> VM<'a> {
     pub fn new(states: &'a Program) -> VM<'a> {
         let mut vm = VM {
             states: *states,
+            index: None,
             threads: ThreadList::new(),
             next: ThreadList::new(),
             matched: false
         };
 
         // Add the initial thread
-        vm.matched = follow(Thread::new(0), vm.states, &mut vm.threads);
+        vm.matched = follow(Thread::new(0), vm.index, vm.states, &mut vm.threads);
 
         vm
     }
 
     /// Feed a character into the automaton.
     pub fn feed(&mut self, c: char) {
+        self.index.mutate_or_set(0, |i| 1 + i);
         self.matched = false;
 
         // Run through all the threads
-        for &t in self.threads.iter() {
+        for t in self.threads.iter() {
             match self.states[t.pc] {
                 Range(lo, hi) => if lo <= c && c <= hi {
-                    if follow(t.with_pc(1 + t.pc), self.states, &mut self.next) {
+                    if follow(t.with_pc(1 + t.pc), self.index, self.states, &mut self.next) {
                         self.matched = true;
                         // Cut off lower priority threads
                         break
                     }
                 },
-                Jump(..) => unreachable!()
+                Jump(..) | Save(..) => unreachable!()
             }
         }
 
@@ -129,7 +147,7 @@ impl<'a> VM<'a> {
 
 /// Add all targets of the given thread to the thread list.
 /// Returns `true` if a matching state is reached; otherwise `false`.
-fn follow(t: Thread, states: &[Inst], threads: &mut ThreadList) -> bool {
+fn follow(t: Thread, index: Option<u64>, states: &[Inst], threads: &mut ThreadList) -> bool {
     if t.pc == states.len() {
         true
     } else {
@@ -137,10 +155,11 @@ fn follow(t: Thread, states: &[Inst], threads: &mut ThreadList) -> bool {
             Jump(ref exits) => {
                 let mut matched = false;
                 for &exit in exits.iter() {
-                    matched |= follow(t.with_pc(exit), states, threads);
+                    matched |= follow(t.with_pc(exit), index, states, threads);
                 }
                 matched
             },
+            Save(reg) => follow(t.with_reg(reg, index), index, states, threads),
             Range(..) => { threads.add(t); false }
         }
     }

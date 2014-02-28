@@ -2,33 +2,58 @@
 
 use parse;
 use parse::{Expr, Greedy, NonGreedy};
-use vm::{Program, Inst, Jump, Range};
+use vm::{Program, Inst, Jump, Range, Save};
 
 
 /// Compile an AST into a `Program`.
 pub fn compile(e: &Expr) -> Program {
-    let mut p = ~[];
+    let mut p = Builder::new();
     compile_expr(&mut p, e);
-    p
+    p.reify()
 }
 
 
-/// Extension methods that simplify the compiler.
-trait CompileExts {
-    fn push_jump(&mut self);
-    fn jumps<'a>(&'a mut self, index: uint) -> &'a mut ~[uint];
+struct Builder {
+    program: Program,
+    n_regs: uint
 }
 
-impl CompileExts for ~[Inst] {
+impl Builder {
+    fn new() -> Builder {
+        Builder {
+            program: ~[],
+            n_regs: 0
+        }
+    }
+
+    fn len(&self) -> uint {
+        self.program.len()
+    }
+
+    fn push(&mut self, inst: Inst) {
+        self.program.push(inst);
+    }
+
     fn push_jump(&mut self) {
-        self.push(Jump(~[]));
+        self.program.push(Jump(~[]));
     }
 
     fn jumps<'a>(&'a mut self, index: uint) -> &'a mut ~[uint] {
-        match self[index] {
+        match self.program[index] {
             Jump(ref mut exits) => exits,
             _ => fail!("something bad happened; it's really bad")
         }
+    }
+
+    fn allocate(&mut self) -> uint {
+        let reg = self.n_regs;
+        self.n_regs += 1;
+        reg
+    }
+
+    fn reify(self) -> Program {
+        let Builder { program, .. } = self;
+        program
     }
 }
 
@@ -43,7 +68,7 @@ macro_rules! record(
 )
 
 
-fn compile_expr(p: &mut Program, e: &Expr) {
+fn compile_expr(p: &mut Builder, e: &Expr) {
     match *e {
         parse::Empty => (),
         parse::Range(lo, hi) => p.push(Range(lo, hi)),
@@ -73,12 +98,17 @@ fn compile_expr(p: &mut Program, e: &Expr) {
             }
         },
         parse::Repeat(ref inner, min, max, greedy) => compile_repeat(p, *inner, min, max, greedy),
-        parse::Capture(..) => fail!("captures not implemented yet")
+        parse::Capture(ref inner) => {
+            let open_reg = p.allocate(); let close_reg = p.allocate();
+            p.push(Save(open_reg));
+            compile_expr(p, *inner);
+            p.push(Save(close_reg));
+        }
     }
 }
 
 
-fn compile_repeat(p: &mut Program, inner: &Expr, min: u32, max: Option<u32>, greedy: Greedy) {
+fn compile_repeat(p: &mut Builder, inner: &Expr, min: u32, max: Option<u32>, greedy: Greedy) {
     match (min, max) {
         (_, Some(max_)) => {
             // Compile `min` repetitions
