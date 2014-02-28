@@ -21,4 +21,4 @@ See also:
 
 * [rust-re](https://github.com/glennsl/rust-re), by Glenn Slotte
 * [regex-rust](https://github.com/ferristseng/regex-rust), by Ferris Tseng
-* [Issue #3591](https://github.com/mozilla/rust/issues/3591) – Add regular expressions to std
+* [Issue #3591](https://github.com/mozilla/rust/issues/3591) – Add regular expressions to the distribution
