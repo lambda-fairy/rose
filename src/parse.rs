@@ -398,7 +398,11 @@ fn p_charclass(s: &mut State) -> CharClass {
                             let hi = cc_hi.to_char().expect("bad character range");
                             classes.push(CharClass::from_range(lo, hi));
                         },
-                        None => classes.push(cc_hi)  // [-z]
+                        None => {
+                            // [-z]
+                            classes.push(CharClass::from_char('-'));
+                            classes.push(cc_hi);
+                        }
                     },
                     None => classes.push(CharClass::from_char('-'))  // [a-]
                 },
