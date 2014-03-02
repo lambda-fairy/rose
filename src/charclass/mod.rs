@@ -194,7 +194,7 @@ mod test {
     #[test]
     fn class_sorted() {
         let c = CharClass::new(~[('y', 'z'), ('a', 'b')]);
-        assert_eq!(c.ranges(), [('a', 'b'), ('y', 'z')]);
+        assert_eq!(c.ranges(), &[('a', 'b'), ('y', 'z')]);
     }
 
     #[test]
@@ -202,9 +202,9 @@ mod test {
         let c1 = CharClass::new(~[('a', 'b'), ('c', 'd')]);  // touching
         let c2 = CharClass::new(~[('a', 'c'), ('b', 'd')]);  // overlapping
         let c3 = CharClass::new(~[('a', 'd'), ('b', 'c')]);  // contained
-        assert_eq!(c1.ranges(), [('a', 'd')]);
-        assert_eq!(c2.ranges(), [('a', 'd')]);
-        assert_eq!(c3.ranges(), [('a', 'd')]);
+        assert_eq!(c1.ranges(), &[('a', 'd')]);
+        assert_eq!(c2.ranges(), &[('a', 'd')]);
+        assert_eq!(c3.ranges(), &[('a', 'd')]);
     }
 
     #[test]
@@ -218,20 +218,20 @@ mod test {
     #[test]
     fn negate_simple() {
         let c = CharClass::new(~[('T', 's'), ('☻', '♪')]).negate();
-        assert_eq!(c.ranges(), [('\0', 'S'), ('t', '☺'), ('♫', char::MAX)]);
+        assert_eq!(c.ranges(), &[('\0', 'S'), ('t', '☺'), ('♫', char::MAX)]);
     }
 
     #[test]
     fn negate_edge_case() {
         let c = CharClass::new(~[('\0', char::MAX)]).negate();
-        assert_eq!(c.ranges(), []);
+        assert_eq!(c.ranges(), &[]);
     }
 
     #[test]
     fn issue_1() {
         // See <https://github.com/lfairy/rose/issues/1>
         let c = CharClass::new(~[('c', 'c'), ('d', 'd'), ('z', 'z')]);
-        assert_eq!(c.ranges(), [('c', 'd'), ('z', 'z')]);
+        assert_eq!(c.ranges(), &[('c', 'd'), ('z', 'z')]);
     }
 }
 
