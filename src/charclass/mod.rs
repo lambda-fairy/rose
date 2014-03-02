@@ -11,6 +11,7 @@ pub type Range = (char, char);
 
 
 /// A character class is a non-empty collection of ranges.
+#[deriving(Clone)]
 pub enum CharClass {
     priv CCOwned(~[Range]),
     priv CCStatic(&'static [Range])

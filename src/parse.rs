@@ -343,9 +343,9 @@ fn p_escape(s: &mut State) -> CharClass {
             'r' => CharClass::from_char('\r'),
             't' => CharClass::from_char('\t'),
 
-            'd' => ascii::digit,
-            's' => ascii::space,
-            'w' => ascii::word,
+            'd' => ascii::digit.clone(),
+            's' => ascii::space.clone(),
+            'w' => ascii::word.clone(),
 
             'D' => ascii::digit.negate(),
             'S' => ascii::space.negate(),
