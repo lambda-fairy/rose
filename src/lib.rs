@@ -4,7 +4,7 @@
 
 //!
 //! ~~~
-//! extern mod rose;
+//! extern crate rose;
 //!
 //! let names = rose::compile(r"Bon Bon|Lyra");
 //! match names.exec("Lyra Heartstrings") {
