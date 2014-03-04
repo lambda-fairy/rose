@@ -129,7 +129,7 @@ fn compile_repeat(p: &mut Builder, inner: &Expr, min: u32, max: Option<u32>, gre
             }
         },
         (0, None) => {
-            let fork = record!();
+            let fork = record!(); p.push_jump();
             compile_repeat(p, inner, 1, None, greedy);
             let end = p.len();
             draw_fork(p.jumps(fork), 1+fork, end, greedy);
