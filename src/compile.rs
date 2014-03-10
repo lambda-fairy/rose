@@ -2,11 +2,12 @@
 
 use parse;
 use parse::{Expr, Greedy, NonGreedy};
-use vm::{Program, Inst, Jump, Range, Save};
+use super::Regex;
+use vm::{Inst, Jump, Range, Save};
 
 
-/// Compile an AST into a `Program`.
-pub fn compile(e: &Expr) -> Program {
+/// Compile an AST into a `Regex`.
+pub fn compile(e: &Expr) -> Regex {
     let mut p = Builder::new();
     compile_expr(&mut p, e);
     p.reify()
@@ -14,7 +15,7 @@ pub fn compile(e: &Expr) -> Program {
 
 
 struct Builder {
-    program: Program,
+    program: ~[Inst],
     n_regs: uint
 }
 
@@ -51,9 +52,9 @@ impl Builder {
         (reg, 1 + reg)
     }
 
-    fn reify(self) -> Program {
-        let Builder { program, .. } = self;
-        program
+    fn reify(self) -> Regex {
+        let Builder { program, n_regs } = self;
+        Regex { program: program, n_regs: n_regs }
     }
 }
 

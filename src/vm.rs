@@ -5,10 +5,6 @@ use std::mem::swap;
 use collections::TrieSet;
 
 
-/// A compiled regular expression, ready to execute.
-pub type Program = ~[Inst];
-
-
 /// A single instruction in the program.
 pub enum Inst {
     /// Jump to all locations in the list simultaneously.  This
@@ -99,9 +95,9 @@ pub struct VM<'a> {
 }
 
 impl<'a> VM<'a> {
-    pub fn new(states: &'a Program) -> VM<'a> {
+    pub fn new(states: &'a [Inst]) -> VM<'a> {
         let mut vm = VM {
-            states: *states,
+            states: states,
             index: None,
             threads: ThreadList::new(),
             next: ThreadList::new(),
