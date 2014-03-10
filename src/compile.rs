@@ -45,10 +45,10 @@ impl Builder {
         }
     }
 
-    fn allocate(&mut self) -> uint {
+    fn allocate(&mut self) -> (uint, uint) {
         let reg = self.n_regs;
-        self.n_regs += 1;
-        reg
+        self.n_regs = 2u.checked_add(&self.n_regs).expect("too many capturing groups");
+        (reg, 1 + reg)
     }
 
     fn reify(self) -> Program {
@@ -99,7 +99,7 @@ fn compile_expr(p: &mut Builder, e: &Expr) {
         },
         parse::Repeat(ref inner, min, max, greedy) => compile_repeat(p, *inner, min, max, greedy),
         parse::Capture(ref inner) => {
-            let open_reg = p.allocate(); let close_reg = p.allocate();
+            let (open_reg, close_reg) = p.allocate();
             p.push(Save(open_reg));
             compile_expr(p, *inner);
             p.push(Save(close_reg));
