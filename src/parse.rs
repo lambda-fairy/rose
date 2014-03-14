@@ -81,13 +81,9 @@ impl<'a> State<'a> {
     /// `None` if empty.
     fn advance(&mut self) -> Option<char> {
         self.prev = Some(self.input);
-        if self.has_input() {
-            let (c, input_) = self.input.slice_shift_char();
-            self.input = input_;
-            Some(c)
-        } else {
-            None
-        }
+        let (c, input_) = self.input.slice_shift_char();
+        self.input = input_;
+        c
     }
 
     /// Push the previously read character back onto the input.  This
