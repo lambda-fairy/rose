@@ -1,6 +1,9 @@
 Rose
 ====
 
+**This library is obsolete – please use the proposed
+[regexp](https://github.com/rust-lang/rfcs/pull/42) crate instead.**
+
 **Rose** is a simple regular expression engine written in Rust.  Its
 design is based mostly on the Pike VM, as described by [Russ Cox][1].
 
